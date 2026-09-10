@@ -1,0 +1,7 @@
+scenario,patient_surge_pct,emergency_surge_pct,bed_capacity_pct,ct_capacity_pct,mri_capacity_pct,staff_pct,procedure_pct
+Normal Day,0,0,0,0,0,0,0
+Patient Surge +30%,30,0,0,0,0,0,0
+Flu Outbreak,25,20,0,0,0,-5,10
+CT Failure,0,0,0,-50,0,0,0
+Staff Shortage,0,0,0,0,0,-25,0
+Mass Casualty Event,70,50,-10,-10,-10,-15,25

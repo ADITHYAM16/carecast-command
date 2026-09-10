@@ -180,14 +180,14 @@
 }
 
 @utility command-grid {
-  background-image: linear-gradient(to right, var(--command-border) 1px, transparent 1px), linear-gradient(to bottom, var(--command-border) 1px, transparent 1px);
-  background-size: 32px 32px;
+  position: relative;
 }
 
 @utility command-panel {
   background: var(--command-panel);
   border: 1px solid var(--command-border);
   box-shadow: 0 18px 45px oklch(0.03 0.02 245 / 12%), inset 0 1px oklch(1 0 0 / 6%);
+  backdrop-filter: blur(12px);
 }
 
 @utility mono-data {
@@ -214,6 +214,52 @@
   animation: data-flow 1.4s linear infinite;
 }
 
+@keyframes ecg-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes ecg-scroll-slow {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-16px) rotate(6deg); }
+}
+
+@keyframes float-medium {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-12px) rotate(-8deg); }
+}
+
+@keyframes float-fast {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(12deg); }
+}
+
+@utility animate-ecg-scroll {
+  animation: ecg-scroll 18s linear infinite;
+}
+
+@utility animate-ecg-scroll-slow {
+  animation: ecg-scroll-slow 28s linear infinite;
+}
+
+@utility animate-float-slow {
+  animation: float-slow 7s ease-in-out infinite;
+}
+
+@utility animate-float-medium {
+  animation: float-medium 5s ease-in-out infinite;
+}
+
+@utility animate-float-fast {
+  animation: float-fast 3.5s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+

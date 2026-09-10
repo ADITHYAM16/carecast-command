@@ -1,13 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { IntroSplash } from "@/components/intro-splash";
 import {
-  Activity, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, BedDouble, Bell, BrainCircuit, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Clock3, Cpu, Download, FileBarChart, FileText, Gauge, GitBranch, HeartPulse, LayoutDashboard, Lightbulb, Menu, Microscope, Moon, Network, Play, Radio, RefreshCw, ScanLine, Search, Settings2, ShieldCheck, Sparkles, Stethoscope, Sun, TableProperties, TimerReset, TrendingDown, TrendingUp, TriangleAlert, UserRound, UsersRound, Workflow, X,
+  Activity, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, BedDouble, Bell, BrainCircuit, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Clock3, Cpu, Download, FileBarChart, FileText, Gauge, GitBranch, HeartPulse, LayoutDashboard, Lightbulb, Menu, Microscope, Moon, Network, Play, Radio, RefreshCw, ScanLine, Search, Settings2, ShieldCheck, Siren, Sparkles, Stethoscope, Sun, TableProperties, TimerReset, TrendingDown, TrendingUp, TriangleAlert, UserRound, UsersRound, Workflow, X,
 } from "lucide-react";
 import {
   Area, AreaChart, CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
 import { Button } from "@/components/ui/button";
+import { HealthcareBackground } from "@/components/healthcare-background";
+import { EmergencyResponseView } from "@/components/emergency-response-view";
 import { api, bottlenecks, departments, hospital, networkEdges, networkNodes, recommendations, resources, simulatorDefaults } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
@@ -31,10 +34,11 @@ export const Route = createFileRoute("/")({
   component: CareCastApp,
 });
 
-type View = "Command Center" | "Capacity Forecast" | "Bottlenecks" | "Dependency Network" | "Scenario Simulator" | "Resource Intelligence" | "Procedures & Scheduling" | "AI Recommendations" | "Reports";
+type View = "Command Center" | "Emergency Response" | "Capacity Forecast" | "Bottlenecks" | "Dependency Network" | "Scenario Simulator" | "Resource Intelligence" | "Procedures & Scheduling" | "AI Recommendations" | "Reports";
 
 const navItems: { label: View; icon: typeof LayoutDashboard }[] = [
   { label: "Command Center", icon: LayoutDashboard },
+  { label: "Emergency Response", icon: Siren },
   { label: "Capacity Forecast", icon: Activity },
   { label: "Bottlenecks", icon: TriangleAlert },
   { label: "Dependency Network", icon: Network },
@@ -45,29 +49,77 @@ const navItems: { label: View; icon: typeof LayoutDashboard }[] = [
   { label: "Reports", icon: FileBarChart },
 ];
 
+function useClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
 function CareCastApp() {
+  const [splash, setSplash] = useState(true);
   const [activeView, setActiveView] = useState<View>("Command Center");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [networkFocus, setNetworkFocus] = useState("ct");
   const [scenario, setScenario] = useState(simulatorDefaults);
   const [simulating, setSimulating] = useState(false);
   const [simulationRun, setSimulationRun] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const hideSplash = useCallback(() => setSplash(false), []);
+  const clock = useClock();
 
   const runSimulation = () => {
     setSimulating(true);
     window.setTimeout(() => { setSimulating(false); setSimulationRun(true); }, 1300);
   };
 
+  const handleSelect = useCallback((view: View) => {
+    setActiveView(view);
+    setMobileOpen(false);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-command text-foreground">
+    <>
+      {splash && <IntroSplash onDone={hideSplash} />}
+      <div className="min-h-screen bg-command text-foreground">
       <div className="flex min-h-screen">
-        <Sidebar activeView={activeView} onSelect={setActiveView} open={sidebarOpen} onToggle={() => setSidebarOpen((value) => !value)} />
+        {/* Mobile overlay */}
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+        {/* Mobile drawer */}
+        <div className={cn(
+          "fixed inset-y-0 left-0 z-50 w-[260px] flex-col border-r border-command-border bg-sidebar transition-transform duration-300 lg:hidden",
+          mobileOpen ? "flex translate-x-0" : "-translate-x-full flex"
+        )}>
+          <SidebarContent activeView={activeView} onSelect={handleSelect} open={true} onToggle={() => setMobileOpen(false)} isMobile />
+        </div>
+        {/* Desktop sidebar */}
+        <Sidebar activeView={activeView} onSelect={setActiveView} open={sidebarOpen} onToggle={() => setSidebarOpen((v) => !v)} />
         <div className="min-w-0 flex-1">
-          <Topbar sidebarOpen={sidebarOpen} onMenu={() => setSidebarOpen((value) => !value)} theme={theme} onToggleTheme={toggleTheme} />
-          <main className="command-grid min-h-[calc(100vh-68px)] px-4 py-5 sm:px-6 lg:px-8">
-            <div className="mx-auto max-w-[1560px]">
+          <Topbar sidebarOpen={sidebarOpen} onMenu={() => setMobileOpen((v) => !v)} theme={theme} onToggleTheme={toggleTheme} clock={clock} />
+          <main className="relative min-h-[calc(100vh-68px)] px-4 py-5 sm:px-6 lg:px-8 overflow-hidden">
+            <HealthcareBackground />
+            <div className="relative z-10 mx-auto max-w-[1560px]">
               {activeView === "Command Center" && <CommandCenter onView={(view) => setActiveView(view)} />}
+              {activeView === "Emergency Response" && (
+                <EmergencyResponseView
+                  onOpenSimulator={(surge) => {
+                    setScenario((prev) => ({ ...prev, surge: surge ?? 80, emergency: 95, beds: 96, ct: 108 }));
+                    setActiveView("Scenario Simulator");
+                  }}
+                  onOpenNetwork={() => {
+                    setNetworkFocus("beds");
+                    setActiveView("Dependency Network");
+                  }}
+                />
+              )}
               {activeView === "Capacity Forecast" && <ForecastPage />}
               {activeView === "Bottlenecks" && <BottlenecksPage onNetwork={() => setActiveView("Dependency Network")} />}
               {activeView === "Dependency Network" && <NetworkPage focus={networkFocus} onFocus={setNetworkFocus} />}
@@ -81,44 +133,114 @@ function CareCastApp() {
         </div>
       </div>
     </div>
+    </>
+  );
+}
+
+function SidebarContent({ activeView, onSelect, open, onToggle, isMobile = false }: { activeView: View; onSelect: (view: View) => void; open: boolean; onToggle: () => void; isMobile?: boolean }) {
+  return (
+    <div className="flex h-full flex-col overflow-y-auto">
+      <div className={cn("flex h-[68px] shrink-0 items-center border-b border-sidebar-border", open ? "px-5" : "justify-center px-2")}>
+        {open ? (
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <img src="/care.png" alt="" className="size-8 shrink-0 object-contain" draggable={false} />
+            <div className="min-w-0">
+              <div className="text-[14px] font-extrabold tracking-[0.18em] text-foreground">CARECAST <span className="text-command-cyan">AI</span></div>
+              <div className="mt-0.5 whitespace-nowrap text-[9px] font-medium tracking-[0.2em] text-muted-foreground">PREDICT • PREPARE • PREVENT</div>
+            </div>
+            {isMobile && (
+              <button onClick={onToggle} className="ml-auto shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground">
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        ) : (
+          <img src="/care.png" alt="CareCast AI" className="size-8 object-contain" draggable={false} />
+        )}
+      </div>
+      <div className={cn("px-3 pt-6", !open && "px-2")}>
+        {open && <div className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Operations</div>}
+        <nav className="space-y-1">
+          {navItems.map(({ label, icon: Icon }) => {
+            const isEmg = label === "Emergency Response";
+            const isActive = activeView === label;
+            return (
+              <button
+                key={label}
+                title={open ? undefined : label}
+                onClick={() => onSelect(label)}
+                className={cn(
+                  "group flex w-full items-center rounded-lg text-left text-[12px] font-medium transition-colors",
+                  open ? "gap-3 px-3 py-2.5" : "justify-center px-2 py-3",
+                  isActive
+                    ? isEmg
+                      ? "bg-command-red/15 text-command-red shadow-[inset_2px_0_0_var(--color-command-red)]"
+                      : "bg-command-cyan/12 text-command-cyan shadow-[inset_2px_0_0_var(--color-command-cyan)]"
+                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                )}
+              >
+                <Icon size={17} strokeWidth={isActive ? 2.25 : 1.8} className={isEmg ? (isActive ? "animate-pulse text-command-red" : "text-command-red/80") : ""} />
+                <span className={cn("whitespace-nowrap", !open && "sr-only")}>{label}</span>
+                {label === "Emergency Response" && open && <span className="ml-auto rounded-full bg-command-red/20 px-1.5 py-0.5 font-mono text-[9px] font-bold text-command-red">LIVE</span>}
+                {label === "Bottlenecks" && open && <span className="ml-auto rounded-full bg-command-red/15 px-1.5 py-0.5 font-mono text-[9px] text-command-red">3</span>}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+      <div className={cn("mt-auto border-t border-sidebar-border p-3", !open && "px-2")}>
+        {open && <div className="mb-4 rounded-lg border border-command-green/20 bg-command-green/5 p-3"><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-command-green"><span className="status-pulse size-1.5 rounded-full bg-command-green" />System status</div><div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground"><ShieldCheck size={14} className="text-command-green" /> AI engine operational</div><div className="mt-2 flex justify-between text-[9px] text-muted-foreground"><span>UPTIME</span><span className="mono-data text-foreground">99.98%</span></div></div>}
+        <button className={cn("flex w-full items-center rounded-lg text-left hover:bg-sidebar-accent", open ? "gap-3 p-2" : "justify-center p-2")} title="Admin profile"><div className="grid size-8 shrink-0 place-items-center rounded-full border border-command-cyan/30 bg-command-cyan/10 text-xs font-bold text-command-cyan">MA</div>{open && <div className="min-w-0"><div className="truncate text-[11px] font-semibold text-foreground">M.ADITHYA</div><div className="text-[10px] text-muted-foreground">Admin</div></div>}</button>
+        {!isMobile && <button onClick={onToggle} className="mt-3 hidden w-full items-center justify-center rounded-md border border-sidebar-border p-2 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground lg:flex" title={open ? "Collapse navigation" : "Expand navigation"}>{open ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}</button>}
+      </div>
+    </div>
   );
 }
 
 function Sidebar({ activeView, onSelect, open, onToggle }: { activeView: View; onSelect: (view: View) => void; open: boolean; onToggle: () => void }) {
   return (
     <aside className={cn("sticky top-0 hidden h-screen shrink-0 flex-col border-r border-command-border bg-sidebar transition-[width] duration-300 lg:flex", open ? "w-[254px]" : "w-[76px]")}>
-      <div className={cn("flex h-[68px] items-center border-b border-sidebar-border", open ? "px-5" : "justify-center px-2")}>
-        <div className="relative grid size-9 shrink-0 place-items-center rounded-xl border border-command-cyan/45 bg-command-cyan/10 text-command-cyan">
-          <Activity size={20} strokeWidth={2.2} />
-          <span className="absolute -right-1 -top-1 size-2 rounded-full bg-command-cyan shadow-[0_0_10px_var(--color-command-cyan)]" />
-        </div>
-        {open && <div className="ml-3 min-w-0"><div className="text-[14px] font-extrabold tracking-[0.18em] text-foreground">CARECAST <span className="text-command-cyan">AI</span></div><div className="mt-0.5 whitespace-nowrap text-[9px] font-medium tracking-[0.2em] text-muted-foreground">PREDICT • PREPARE • PREVENT</div></div>}
-      </div>
-      <div className={cn("px-3 pt-6", !open && "px-2")}>
-        {open && <div className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Operations</div>}
-        <nav className="space-y-1">
-          {navItems.map(({ label, icon: Icon }) => <button key={label} title={open ? undefined : label} onClick={() => onSelect(label)} className={cn("group flex w-full items-center rounded-lg text-left text-[12px] font-medium transition-colors", open ? "gap-3 px-3 py-2.5" : "justify-center px-2 py-3", activeView === label ? "bg-command-cyan/12 text-command-cyan shadow-[inset_2px_0_0_var(--color-command-cyan)]" : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground")}><Icon size={17} strokeWidth={activeView === label ? 2.25 : 1.8} /><span className={cn("whitespace-nowrap", !open && "sr-only")}>{label}</span>{label === "Bottlenecks" && open && <span className="ml-auto rounded-full bg-command-red/15 px-1.5 py-0.5 font-mono text-[9px] text-command-red">3</span>}</button>)}
-        </nav>
-      </div>
-      <div className={cn("mt-auto border-t border-sidebar-border p-3", !open && "px-2")}>
-        {open && <div className="mb-4 rounded-lg border border-command-green/20 bg-command-green/5 p-3"><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-command-green"><span className="status-pulse size-1.5 rounded-full bg-command-green" />System status</div><div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground"><ShieldCheck size={14} className="text-command-green" /> AI engine operational</div><div className="mt-2 flex justify-between text-[9px] text-muted-foreground"><span>UPTIME</span><span className="mono-data text-foreground">99.98%</span></div></div>}
-        <button className={cn("flex w-full items-center rounded-lg text-left hover:bg-sidebar-accent", open ? "gap-3 p-2" : "justify-center p-2")} title="Admin profile"><div className="grid size-8 shrink-0 place-items-center rounded-full border border-command-cyan/30 bg-command-cyan/10 text-xs font-bold text-command-cyan">AR</div>{open && <div className="min-w-0"><div className="truncate text-[11px] font-semibold text-foreground">Alex Rivera</div><div className="text-[10px] text-muted-foreground">Operations admin</div></div>}</button>
-        <button onClick={onToggle} className="mt-3 hidden w-full items-center justify-center rounded-md border border-sidebar-border p-2 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground lg:flex" title={open ? "Collapse navigation" : "Expand navigation"}>{open ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}</button>
-      </div>
+      <SidebarContent activeView={activeView} onSelect={onSelect} open={open} onToggle={onToggle} />
     </aside>
   );
 }
 
-function Topbar({ onMenu, theme, onToggleTheme }: { sidebarOpen: boolean; onMenu: () => void; theme: string; onToggleTheme: () => void }) {
-  return <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-command-border bg-command/95 px-4 backdrop-blur-xl sm:px-6 lg:px-8"><div className="flex min-w-0 items-center gap-3"><Button variant="ghost" size="icon" className="text-muted-foreground lg:hidden" onClick={onMenu}><Menu /></Button><div className="hidden size-8 items-center justify-center rounded-lg bg-command-cyan/10 text-command-cyan sm:flex"><HeartPulse size={18} /></div><div className="min-w-0"><div className="truncate text-[12px] font-semibold text-foreground sm:text-[13px]">Salem Central Medical Center</div><div className="mt-0.5 flex items-center gap-2 text-[9px] uppercase tracking-[0.16em] text-muted-foreground"><span className="status-pulse size-1.5 rounded-full bg-command-green" />System operational <span className="hidden text-command-border sm:inline">•</span><span className="hidden sm:inline">Control room 01</span></div></div></div><div className="flex items-center gap-3 sm:gap-6"><div className="hidden items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground md:flex"><BrainCircuit size={15} className="text-command-cyan" /> Forecast engine <span className="font-semibold text-command-cyan">active</span></div><div className="hidden text-right sm:block"><div className="mono-data text-[11px] text-foreground">THU, SEP 10 · 06:49</div><div className="mt-0.5 text-[9px] text-muted-foreground">LOCAL TIME · UTC +05:30</div></div><Button
-      variant="ghost"
-      size="icon"
-      className="text-muted-foreground hover:text-foreground"
-      onClick={onToggleTheme}
-      title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-    >
-      {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
-    </Button><Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground"><Bell size={17} /><span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-command-red" /></Button><div className="grid size-8 place-items-center rounded-full border border-command-cyan/30 bg-command-cyan/10 text-[10px] font-bold text-command-cyan">AR</div></div></header>;
+
+function Topbar({ onMenu, theme, onToggleTheme, clock }: { sidebarOpen: boolean; onMenu: () => void; theme: string; onToggleTheme: () => void; clock: Date }) {
+  const timeStr = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  const dateStr = clock.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }).toUpperCase();
+  const tzOffset = (() => { const o = -clock.getTimezoneOffset(); const h = String(Math.floor(Math.abs(o) / 60)).padStart(2, "0"); const m = String(Math.abs(o) % 60).padStart(2, "0"); return `UTC ${o >= 0 ? "+" : "-"}${h}:${m}`; })();
+  return (
+    <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-command-border bg-command/95 px-3 backdrop-blur-xl sm:px-6 lg:px-8">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground lg:hidden" onClick={onMenu}><Menu size={18} /></Button>
+        <div className="hidden size-8 shrink-0 items-center justify-center rounded-lg bg-command-cyan/10 text-command-cyan sm:flex"><HeartPulse size={18} /></div>
+        <div className="min-w-0">
+          <div className="truncate text-[12px] font-semibold text-foreground sm:text-[13px]">Salem Central Medical Center</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
+            <span className="status-pulse size-1.5 shrink-0 rounded-full bg-command-green" />
+            <span className="hidden sm:inline">System operational</span>
+            <span className="sm:hidden">Operational</span>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 sm:gap-4">
+        <div className="hidden items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground lg:flex">
+          <BrainCircuit size={15} className="text-command-cyan" /> Forecast engine <span className="font-semibold text-command-cyan">active</span>
+        </div>
+        <div className="text-right">
+          <div className="mono-data text-[11px] font-semibold text-foreground">{timeStr}</div>
+          <div className="mt-0.5 hidden text-[9px] text-muted-foreground sm:block">{dateStr} · {tzOffset}</div>
+        </div>
+        <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={onToggleTheme} title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>
+          {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+        </Button>
+        <Button variant="ghost" size="icon" className="relative shrink-0 text-muted-foreground hover:text-foreground">
+          <Bell size={17} /><span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-command-red" />
+        </Button>
+      </div>
+    </header>
+  );
 }
 
 function PageHeader({ eyebrow, title, subtitle, action }: { eyebrow?: string; title: string; subtitle: string; action?: React.ReactNode }) {
@@ -146,7 +268,7 @@ function CommandCenter({ onView }: { onView: (view: View) => void }) {
   return <div className="pb-10"><PageHeader eyebrow="Command Center / Live" title="Hospital Command Center" subtitle="Predictive capacity intelligence for proactive hospital operations" action={<div className="flex items-center gap-3"><span className="flex items-center gap-2 rounded-full border border-command-red/25 bg-command-red/10 px-3 py-1.5 text-[10px] font-semibold tracking-[0.14em] text-command-red"><span className="status-pulse size-1.5 rounded-full bg-command-red" />LIVE</span><span className="hidden text-[10px] text-muted-foreground sm:inline">Updated {hospital.lastUpdated}</span></div>} />
     <div className="grid gap-5 xl:grid-cols-[0.88fr_1.55fr]">
       <CapacityHero />
-      <CriticalAlert onImpact={() => onView("Dependency Network")} onSimulate={() => onView("Scenario Simulator")} />
+      <CriticalAlert onEmergency={() => onView("Emergency Response")} onImpact={() => onView("Dependency Network")} onSimulate={() => onView("Scenario Simulator")} />
     </div>
     <Panel className="mt-5 overflow-hidden" title="Capacity Forecast" meta="AI prediction of hospital resource pressure" action={<div className="flex rounded-md border border-command-border bg-command/50 p-0.5">{["6H", "12H", "24H", "48H"].map((item) => <button key={item} onClick={() => setRange(item)} className={cn("rounded px-2.5 py-1 text-[9px] font-semibold", range === item ? "bg-command-cyan/15 text-command-cyan" : "text-muted-foreground hover:text-foreground")}>{item}</button>)}</div>}><ForecastChart compact range={range} /></Panel>
     <div className="mt-5 grid gap-5 xl:grid-cols-[1.35fr_0.85fr]"><ResourceStrip /><PressureMap /></div>
@@ -158,8 +280,8 @@ function CapacityHero() {
   return <Panel className="relative min-h-[286px] overflow-hidden p-5 sm:p-6"><div className="absolute -right-20 -top-20 size-64 rounded-full bg-command-cyan/8 blur-3xl" /><div className="relative flex h-full flex-col justify-between"><div className="flex items-start justify-between"><div><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-command-cyan"><Gauge size={15} /> Hospital capacity health</div><div className="mt-2 text-[11px] text-muted-foreground">Current system-wide utilization score</div></div><div className="flex items-center gap-1.5 rounded border border-command-amber/25 bg-command-amber/10 px-2 py-1 text-[9px] font-semibold tracking-[0.1em] text-command-amber"><span className="size-1.5 rounded-full bg-command-amber" /> Moderate risk</div></div><div className="mt-5 flex items-center gap-6"><div className="relative size-36 shrink-0"><svg viewBox="0 0 120 120" className="size-full -rotate-90"><circle cx="60" cy="60" r="49" fill="none" stroke="var(--color-command-border)" strokeWidth="7" /><circle cx="60" cy="60" r="49" fill="none" stroke="var(--color-command-cyan)" strokeWidth="7" strokeLinecap="round" strokeDasharray="307.8" strokeDashoffset="67.7" className="drop-shadow-[0_0_9px_var(--color-command-cyan)]" /></svg><div className="absolute inset-0 grid place-items-center text-center"><div><div className="mono-data text-4xl font-semibold text-foreground">78</div><div className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground">of 100</div></div></div></div><div className="min-w-0"><div className="text-[12px] leading-5 text-muted-foreground">Capacity pressure is increasing. AI forecasts elevated emergency demand within the next 6 hours.</div><div className="mt-5 grid grid-cols-3 gap-3"><Metric label="Current" value="78%" tone="cyan" /><Metric label="Predicted peak" value="94%" tone="amber" /><Metric label="Time to critical" value="3h 12m" tone="red" /></div></div></div><div className="mt-4 flex items-center justify-between border-t border-command-border/70 pt-3 text-[9px] text-muted-foreground"><span className="flex items-center gap-1.5"><RefreshCw size={11} /> Forecast recalibrated 10s ago</span><span className="mono-data text-command-cyan">CONFIDENCE 92.4%</span></div></div></Panel>;
 }
 
-function CriticalAlert({ onImpact, onSimulate }: { onImpact: () => void; onSimulate: () => void }) {
-  return <Panel className="relative overflow-hidden border-command-red/35 bg-command-red/[0.04] p-5 sm:p-6"><div className="absolute inset-y-0 left-0 w-1 bg-command-red shadow-[0_0_20px_var(--color-command-red)]" /><div className="absolute -right-24 -top-24 size-64 rounded-full bg-command-red/10 blur-3xl" /><div className="relative"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.17em] text-command-red"><span className="status-pulse grid size-5 place-items-center rounded-full bg-command-red/15"><AlertTriangle size={12} /></span> Critical capacity alert</div><span className="mono-data text-[10px] text-muted-foreground">ALERT · CC-0247</span></div><div className="mt-5 flex items-end justify-between gap-4"><div><h2 className="text-xl font-semibold text-foreground">Emergency Bed Capacity</h2><p className="mt-1 text-[11px] text-muted-foreground">Emergency demand is projected to exceed available bed capacity.</p></div><div className="text-right"><div className="mono-data text-3xl font-semibold text-command-red">97%</div><div className="text-[9px] uppercase tracking-[0.16em] text-muted-foreground">forecast utilization</div></div></div><div className="mt-5 rounded-lg border border-command-red/20 bg-command/55 p-3"><div className="flex items-center justify-between text-[9px] uppercase tracking-[0.14em] text-muted-foreground"><span>Now <b className="ml-1 font-mono text-foreground">88%</b></span><span>+1h <b className="ml-1 font-mono text-foreground">91%</b></span><span>+2h <b className="ml-1 font-mono text-command-red">97%</b></span><span>+3h <b className="ml-1 font-mono text-command-red">101%</b></span></div><div className="relative mt-3 h-8"><div className="absolute left-0 right-0 top-3 h-px bg-command-border" /><div className="absolute left-[66%] right-0 top-0 border-t border-dashed border-command-red/70" /><span className="absolute left-[66%] top-[-5px] h-4 w-px bg-command-red" /><div className="absolute left-[68%] top-1 flex items-center gap-1.5 text-[8px] font-bold text-command-red"><span className="size-1.5 rounded-full bg-command-red" /> overload predicted</div><div className="absolute left-0 top-[7px] size-3 rounded-full border-2 border-command-cyan bg-command" /><div className="absolute left-[66%] top-[5px] size-4 rounded-full border-2 border-command-red bg-command-red/25 shadow-[0_0_12px_var(--color-command-red)]" /></div></div><div className="mt-5 grid grid-cols-[1fr_auto] gap-4"><div><div className="mb-2 flex items-center gap-2 text-[10px] font-semibold text-muted-foreground"><GitBranch size={13} className="text-command-red" /> Impact path</div><div className="flex items-center gap-2 text-[11px] font-medium text-foreground"><span>Emergency</span><ArrowRight size={13} className="text-command-red" /><span>General Ward</span><ArrowRight size={13} className="text-command-red" /><span>ICU pressure</span></div><div className="mt-3 flex items-center gap-2 text-[10px] text-command-amber"><Lightbulb size={13} /> Prepare 12 additional beds before demand peaks.</div></div><div className="text-right"><div className="text-[9px] uppercase tracking-[0.13em] text-muted-foreground">Overload in</div><div className="mono-data mt-1 text-xl font-semibold text-command-red">2h 47m</div></div></div><div className="mt-5 flex flex-wrap gap-2"><Button size="sm" variant="outline" className="border-command-border bg-command/40 text-[10px]" onClick={onImpact}><Network size={14} /> View impact</Button><Button size="sm" className="bg-command-red text-destructive-foreground hover:bg-command-red/90" onClick={onSimulate}><Play size={13} /> Simulate response</Button></div></div></Panel>;
+function CriticalAlert({ onEmergency, onImpact, onSimulate }: { onEmergency?: () => void; onImpact: () => void; onSimulate: () => void }) {
+  return <Panel className="relative overflow-hidden border-command-red/35 bg-command-red/[0.04] p-5 sm:p-6"><div className="absolute inset-y-0 left-0 w-1 bg-command-red shadow-[0_0_20px_var(--color-command-red)]" /><div className="absolute -right-24 -top-24 size-64 rounded-full bg-command-red/10 blur-3xl" /><div className="relative"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.17em] text-command-red"><span className="status-pulse grid size-5 place-items-center rounded-full bg-command-red/15"><AlertTriangle size={12} /></span> Critical capacity alert</div><span className="mono-data text-[10px] text-muted-foreground">ALERT · CC-0247</span></div><div className="mt-5 flex items-end justify-between gap-4"><div><h2 className="text-xl font-semibold text-foreground">Emergency Bed Capacity</h2><p className="mt-1 text-[11px] text-muted-foreground">Emergency demand is projected to exceed available bed capacity.</p></div><div className="text-right"><div className="mono-data text-3xl font-semibold text-command-red">97%</div><div className="text-[9px] uppercase tracking-[0.16em] text-muted-foreground">forecast utilization</div></div></div><div className="mt-5 rounded-lg border border-command-red/20 bg-command/55 p-3"><div className="flex items-center justify-between text-[9px] uppercase tracking-[0.14em] text-muted-foreground"><span>Now <b className="ml-1 font-mono text-foreground">88%</b></span><span>+1h <b className="ml-1 font-mono text-foreground">91%</b></span><span>+2h <b className="ml-1 font-mono text-command-red">97%</b></span><span>+3h <b className="ml-1 font-mono text-command-red">101%</b></span></div><div className="relative mt-3 h-8"><div className="absolute left-0 right-0 top-3 h-px bg-command-border" /><div className="absolute left-[66%] right-0 top-0 border-t border-dashed border-command-red/70" /><span className="absolute left-[66%] top-[-5px] h-4 w-px bg-command-red" /><div className="absolute left-[68%] top-1 flex items-center gap-1.5 text-[8px] font-bold text-command-red"><span className="size-1.5 rounded-full bg-command-red" /> overload predicted</div><div className="absolute left-0 top-[7px] size-3 rounded-full border-2 border-command-cyan bg-command" /><div className="absolute left-[66%] top-[5px] size-4 rounded-full border-2 border-command-red bg-command-red/25 shadow-[0_0_12px_var(--color-command-red)]" /></div></div><div className="mt-5 grid grid-cols-[1fr_auto] gap-4"><div><div className="mb-2 flex items-center gap-2 text-[10px] font-semibold text-muted-foreground"><GitBranch size={13} className="text-command-red" /> Impact path</div><div className="flex items-center gap-2 text-[11px] font-medium text-foreground"><span>Emergency</span><ArrowRight size={13} className="text-command-red" /><span>General Ward</span><ArrowRight size={13} className="text-command-red" /><span>ICU pressure</span></div><div className="mt-3 flex items-center gap-2 text-[10px] text-command-amber"><Lightbulb size={13} /> Prepare 12 additional beds before demand peaks.</div></div><div className="text-right"><div className="text-[9px] uppercase tracking-[0.13em] text-muted-foreground">Overload in</div><div className="mono-data mt-1 text-xl font-semibold text-command-red">2h 47m</div></div></div><div className="mt-5 flex flex-wrap gap-2">{onEmergency && <Button size="sm" className="bg-command-red text-white hover:bg-command-red/90 text-[10px] font-bold" onClick={onEmergency}><Siren size={13} className="mr-1.5 animate-pulse" /> Emergency Network</Button>}<Button size="sm" variant="outline" className="border-command-border bg-command/40 text-[10px]" onClick={onImpact}><Network size={14} /> View impact</Button><Button size="sm" variant="outline" className="border-command-border text-[10px]" onClick={onSimulate}><Play size={13} /> Simulate response</Button></div></div></Panel>;
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone: "cyan" | "amber" | "red" | "green" }) { return <div><div className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground">{label}</div><div className={cn("mono-data mt-1 text-[15px] font-semibold", tone === "cyan" ? "text-command-cyan" : tone === "amber" ? "text-command-amber" : tone === "green" ? "text-command-green" : "text-command-red")}>{value}</div></div>; }
@@ -187,13 +309,60 @@ function StatCard({ icon: Icon, label, value, detail, tone }: { icon: typeof Tre
 
 function BottlenecksPage({ onNetwork }: { onNetwork: () => void }) { return <div className="pb-10"><PageHeader eyebrow="Predict / Risk queue" title="Predicted Bottlenecks" subtitle="Identify resource constraints before congestion occurs." action={<Button size="sm" className="bg-command-cyan text-primary-foreground text-[10px]" onClick={onNetwork}><Network size={13} /> Open impact network</Button>} /><div className="mb-5 grid gap-4 sm:grid-cols-3"><StatCard icon={TriangleAlert} label="Critical bottlenecks" value="3 detected" detail="Across 2 departments" tone="red" /><StatCard icon={TimerReset} label="Next overload" value="2h 47m" detail="Emergency bed capacity" tone="amber" /><StatCard icon={ArrowDownRight} label="Risk prevented" value="18%" detail="With current actions" tone="green" /></div><Panel title="Bottleneck intelligence" meta="Sorted by time to overload"><div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left"><thead><tr className="border-b border-command-border text-[9px] uppercase tracking-[0.13em] text-muted-foreground">{["Resource", "Department", "Current", "Predicted peak", "Capacity", "Time to overload", "Risk", "Impact"].map((heading) => <th key={heading} className="px-4 py-3 font-medium">{heading}</th>)}</tr></thead><tbody>{bottlenecks.map((item) => <tr key={item.resource} className="border-b border-command-border/60 text-[11px] hover:bg-command-cyan/5"><td className="px-4 py-4 font-semibold text-foreground">{item.resource}</td><td className="px-4 py-4 text-muted-foreground">{item.department}</td><td className="mono-data px-4 py-4 text-foreground">{item.current}%</td><td className="mono-data px-4 py-4 text-command-red">{item.peak}%</td><td className="px-4 py-4 text-muted-foreground">{item.capacity}</td><td className="mono-data px-4 py-4 text-command-amber">{item.time}</td><td className="px-4 py-4"><RiskBadge risk={item.risk} /></td><td className="px-4 py-4 text-muted-foreground">{item.impact}</td></tr>)}</tbody></table></div></Panel><Panel className="mt-5" title="Bottleneck timeline" meta="When resources cross capacity thresholds"><div className="p-5"><div className="flex justify-between text-[9px] text-muted-foreground"><span>NOW</span><span>+2H</span><span>+4H</span><span>+6H</span><span>+12H</span></div><div className="relative mt-7 space-y-6">{bottlenecks.map((item, index) => <div key={item.resource} className="grid grid-cols-[125px_1fr] items-center gap-4"><div className="truncate text-[10px] font-medium text-foreground">{item.resource}</div><div className="relative h-7"><div className="absolute top-3 h-px w-full bg-command-border" /><div className="absolute top-1 h-5 rounded-r-full bg-command-red/25" style={{ left: `${index === 0 ? 0 : index === 1 ? 15 : 28}%`, width: `${index === 0 ? 25 : index === 1 ? 35 : 48}%` }} /><div className="absolute top-1 size-5 rounded-full border-2 border-command-red bg-command/90 shadow-[0_0_12px_var(--color-command-red)]" style={{ left: `${index === 0 ? 25 : index === 1 ? 50 : 76}%` }} /><span className="absolute top-7 -translate-x-1/2 text-[9px] font-mono text-command-red" style={{ left: `${index === 0 ? 25 : index === 1 ? 50 : 76}%` }}>{item.time}</span></div></div>)}</div></div></Panel></div>; }
 
-function NetworkPage({ focus, onFocus }: { focus: string; onFocus: (id: string) => void }) { const selected = networkNodes.find((node) => node.id === focus) ?? networkNodes[0]; return <div className="pb-10"><PageHeader eyebrow="Propagate / Dependency model" title="Hospital Dependency Network" subtitle="How will one shortage affect the rest of the hospital?" action={<div className="flex items-center gap-2 rounded border border-command-cyan/20 bg-command-cyan/5 px-3 py-2 text-[10px] text-command-cyan"><span className="status-pulse size-1.5 rounded-full bg-command-cyan" /> Live propagation model</div>} /><div className="grid gap-5 xl:grid-cols-[1fr_310px]"><Panel className="overflow-hidden" title="Operational dependency graph" meta="Select a resource to highlight downstream impact"><NetworkGraph focus={focus} onFocus={onFocus} /></Panel><Panel title="Propagation analysis" meta="Downstream impact assessment" className="h-fit"><div className="p-5"><div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Primary bottleneck</div><div className="mt-2 flex items-center gap-3"><div className="grid size-9 place-items-center rounded-lg bg-command-red/12 text-command-red"><ScanLine size={18} /></div><div><div className="text-[13px] font-semibold text-foreground">{selected.label}</div><RiskBadge risk="HIGH" /></div></div><div className="mt-6 space-y-4"><ImpactRow label="Direct impact" value="Diagnostic department" /><ImpactRow label="Secondary impact" value="General Ward" /><ImpactRow label="Tertiary impact" value="Emergency Beds" /></div><div className="mt-6 rounded-lg border border-command-red/20 bg-command-red/5 p-4"><div className="flex justify-between"><span className="text-[10px] text-muted-foreground">Propagation risk</span><span className="text-[10px] font-semibold text-command-red">HIGH</span></div><div className="mt-3 flex items-end justify-between"><span className="text-[10px] text-muted-foreground">Impact score</span><span className="mono-data text-2xl font-semibold text-command-red">78<span className="text-xs text-muted-foreground">/100</span></span></div><div className="mt-3 h-1 rounded-full bg-command-border"><div className="h-full w-[78%] rounded-full bg-command-red" /></div></div><div className="mt-5 flex items-center gap-2 text-[10px] leading-5 text-muted-foreground"><Clock3 size={14} className="shrink-0 text-command-amber" /> Estimated downstream delay: <span className="font-semibold text-foreground">42 minutes</span></div><Button className="mt-5 w-full bg-command-cyan text-primary-foreground text-[10px]"><Sparkles size={13} /> View recommended response</Button></div></Panel></div></div>; }
+function NetworkPage({ focus, onFocus }: { focus: string; onFocus: (id: string) => void }) { const selected = networkNodes.find((node) => node.id === focus) ?? networkNodes[0]!; return <div className="pb-10"><PageHeader eyebrow="Propagate / Dependency model" title="Hospital Dependency Network" subtitle="How will one shortage affect the rest of the hospital?" action={<div className="flex items-center gap-2 rounded border border-command-cyan/20 bg-command-cyan/5 px-3 py-2 text-[10px] text-command-cyan"><span className="status-pulse size-1.5 rounded-full bg-command-cyan" /> Live propagation model</div>} /><div className="grid gap-5 xl:grid-cols-[1fr_310px]"><Panel className="overflow-hidden" title="Operational dependency graph" meta="Select a resource to highlight downstream impact"><NetworkGraph focus={focus} onFocus={onFocus} /></Panel><Panel title="Propagation analysis" meta="Downstream impact assessment" className="h-fit"><div className="p-5"><div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Primary bottleneck</div><div className="mt-2 flex items-center gap-3"><div className="grid size-9 place-items-center rounded-lg bg-command-red/12 text-command-red"><ScanLine size={18} /></div><div><div className="text-[13px] font-semibold text-foreground">{selected.label}</div><RiskBadge risk="HIGH" /></div></div><div className="mt-6 space-y-4"><ImpactRow label="Direct impact" value="Diagnostic department" /><ImpactRow label="Secondary impact" value="General Ward" /><ImpactRow label="Tertiary impact" value="Emergency Beds" /></div><div className="mt-6 rounded-lg border border-command-red/20 bg-command-red/5 p-4"><div className="flex justify-between"><span className="text-[10px] text-muted-foreground">Propagation risk</span><span className="text-[10px] font-semibold text-command-red">HIGH</span></div><div className="mt-3 flex items-end justify-between"><span className="text-[10px] text-muted-foreground">Impact score</span><span className="mono-data text-2xl font-semibold text-command-red">78<span className="text-xs text-muted-foreground">/100</span></span></div><div className="mt-3 h-1 rounded-full bg-command-border"><div className="h-full w-[78%] rounded-full bg-command-red" /></div></div><div className="mt-5 flex items-center gap-2 text-[10px] leading-5 text-muted-foreground"><Clock3 size={14} className="shrink-0 text-command-amber" /> Estimated downstream delay: <span className="font-semibold text-foreground">42 minutes</span></div><Button className="mt-5 w-full bg-command-cyan text-primary-foreground text-[10px]"><Sparkles size={13} /> View recommended response</Button></div></Panel></div></div>; }
 
 function ImpactRow({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between border-b border-command-border/60 pb-3 text-[10px]"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium text-foreground">{value}</span></div>; }
 
 function NetworkGraph({ focus, onFocus }: { focus: string; onFocus: (id: string) => void }) { const getNode = (id: string) => networkNodes.find((node) => node.id === id); const isRelated = (from: string, to: string) => focus === from || focus === to || (focus === "ct" && ["diagnosis", "treatment", "ward", "icu"].includes(to)); return <div className="relative h-[540px] min-w-[720px] overflow-auto bg-command/45 p-4"><svg viewBox="0 0 1000 620" className="h-full w-full min-w-[700px]" aria-label="Hospital dependency network"><defs><marker id="arrow-cyan" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--color-command-cyan)" /></marker><marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--color-command-red)" /></marker></defs>{networkEdges.map(([from, to, strength]) => { const a = getNode(from); const b = getNode(to); if (!a || !b) return null; const active = isRelated(from, to); return <g key={`${from}-${to}`} opacity={focus && !active ? 0.17 : 1}><line x1={a.x * 10 + 65} y1={a.y * 6 + 25} x2={b.x * 10 + 65} y2={b.y * 6 + 25} stroke={active && focus !== "arrival" ? "var(--color-command-red)" : "var(--color-command-cyan)"} strokeWidth={active ? 2.2 : 1.2} strokeDasharray={active ? "6 5" : "none"} markerEnd={`url(#${active && focus !== "arrival" ? "arrow-red" : "arrow-cyan"})`} className={active ? "flow-line" : ""} /><text x={(a.x * 10 + b.x * 10) / 2 + 65} y={(a.y * 6 + b.y * 6) / 2 + 20} fill="var(--color-muted-foreground)" fontSize="11" textAnchor="middle">{strength}</text></g>; })}{networkNodes.map((node) => { const active = node.id === focus || isRelated(focus, node.id); return <g key={node.id} onClick={() => onFocus(node.id)} className="cursor-pointer" opacity={focus && !active ? 0.3 : 1}><rect x={node.x * 10 + 15} y={node.y * 6} width={node.id === "arrival" ? 125 : 132} height="51" rx="9" fill={node.id === focus ? "var(--color-command-red)" : "var(--color-command-raised)"} fillOpacity={node.id === focus ? 0.18 : 0.95} stroke={node.id === focus ? "var(--color-command-red)" : node.kind === "risk" ? "var(--color-command-amber)" : "var(--color-command-border)"} strokeWidth={node.id === focus ? 2 : 1.3} /><text x={node.x * 10 + (node.id === "arrival" ? 77 : 81)} y={node.y * 6 + 22} fill="var(--color-foreground)" fontSize="12" fontWeight="600" textAnchor="middle">{node.label}</text><text x={node.x * 10 + (node.id === "arrival" ? 77 : 81)} y={node.y * 6 + 38} fill={node.kind === "risk" ? "var(--color-command-red)" : "var(--color-command-cyan)"} fontSize="9" textAnchor="middle">{node.kind === "risk" ? "RISK SIGNAL" : node.kind === "source" ? "INPUT STREAM" : "DEPENDENCY"}</text></g>; })}</svg><div className="absolute bottom-5 left-5 flex items-center gap-4 rounded-lg border border-command-border bg-command-raised/90 px-3 py-2 text-[9px] text-muted-foreground"><span className="flex items-center gap-1.5"><span className="h-px w-4 bg-command-cyan" /> Dependency</span><span className="flex items-center gap-1.5"><span className="h-px w-4 bg-command-red" /> Affected path</span><span className="hidden sm:inline">Click a node to inspect</span></div></div>; }
 
-function SimulatorPage({ scenario, setScenario, simulating, simulationRun, onRun }: { scenario: typeof simulatorDefaults; setScenario: (value: typeof simulatorDefaults) => void; simulating: boolean; simulationRun: boolean; onRun: () => void }) { const result = api.getScenario(scenario.surge); return <div className="pb-10"><PageHeader eyebrow="Simulate / Decision lab" title="Capacity Scenario Simulator" subtitle="Test operational decisions before they impact patients." action={<div className="flex items-center gap-2 rounded border border-command-cyan/20 bg-command-cyan/5 px-3 py-2 text-[10px] text-command-cyan"><Cpu size={14} /> Simulation engine ready</div>} /><div className="grid gap-5 xl:grid-cols-[340px_1fr]"><Panel title="Scenario controls" meta="Adjust demand and operational capacity"><div className="p-5">{([ ["Patient arrival surge", "surge", -20, 100, "%"], ["Emergency demand", "emergency", 40, 120, "%"], ["Bed capacity", "beds", 40, 100, "%"], ["CT capacity", "ct", 40, 120, "%"], ["MRI capacity", "mri", 20, 100, "%"], ["Staff availability", "staff", 40, 120, "%"], ["Scheduled procedures", "procedures", 20, 100, "%" ]] as const).map(([label, key, min, max, unit]) => <label key={key} className="mb-5 block"><div className="mb-2 flex justify-between text-[10px]"><span className="text-foreground">{label}</span><span className="mono-data text-command-cyan">{scenario[key]}{unit}</span></div><input type="range" min={min} max={max} value={scenario[key]} onChange={(event) => setScenario({ ...scenario, [key]: Number(event.target.value) })} className="w-full accent-command-cyan" /></label>)}<div className="mt-6 border-t border-command-border pt-5"><div className="mb-3 text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Preset scenarios</div><div className="grid grid-cols-2 gap-2">{["Normal day", "Patient surge +30%", "Flu outbreak", "CT failure", "Staff shortage", "Mass casualty event"].map((preset) => <button key={preset} className="rounded-md border border-command-border bg-command/35 px-2 py-2 text-left text-[9px] text-muted-foreground hover:border-command-cyan/40 hover:text-foreground" onClick={() => setScenario({ ...scenario, surge: preset.includes("surge") ? 30 : preset.includes("casualty") ? 80 : preset.includes("Flu") ? 55 : preset.includes("CT") ? 20 : preset.includes("staff") ? 25 : 0 })}>{preset}</button>)}</div></div><Button onClick={onRun} disabled={simulating} className="mt-6 w-full bg-command-cyan text-primary-foreground text-[10px]">{simulating ? <><RefreshCw size={13} className="animate-spin" /> AI simulation running...</> : <><Play size={13} /> Run simulation</>}</Button></div></Panel><div className="space-y-5"><Panel title="Simulation result" meta={simulationRun ? "Model completed · Updated just now" : "Current state vs simulated state"} action={<span className={cn("rounded px-2 py-1 text-[9px] font-semibold tracking-[0.13em]", simulationRun ? "bg-command-red/12 text-command-red" : "bg-command-green/10 text-command-green")}>{simulationRun ? "HIGH PROJECTED RISK" : "BASELINE STABLE"}</span>}><div className="grid gap-3 p-4 sm:grid-cols-5">{[["Beds", 72, result.beds], ["Emergency", 68, result.emergency], ["CT", 71, result.ct], ["Laboratory", 64, result.laboratory], ["ICU", 61, result.icu]].map(([label, current, projected]) => <div key={label as string} className="rounded-lg border border-command-border bg-command/35 p-3"><div className="text-[10px] text-muted-foreground">{label as string}</div><div className="mt-3 flex items-end justify-between"><span className="mono-data text-xl text-foreground">{simulationRun ? projected : current}%</span><span className="text-[9px] text-muted-foreground">{simulationRun ? <ArrowUpRight size={12} className="inline text-command-red" /> : "current"}</span></div><div className="mt-2 h-1 rounded-full bg-command-border"><div className={cn("h-full rounded-full", Number(projected) > 90 ? "bg-command-red" : "bg-command-cyan")} style={{ width: `${simulationRun ? Math.min(100, Number(projected)) : Number(current)}%` }} /></div><div className="mt-2 text-[9px] text-muted-foreground">{simulationRun ? `from ${current}%` : "baseline"}</div></div>)}</div></Panel><Panel title="Scenario impact propagation" meta="Projected pressure travels through connected departments"><div className="flex flex-wrap items-center justify-center gap-2 p-8 text-center sm:gap-3">{["Patient surge", "Emergency", "Beds", "CT + Laboratory", "Treatment", "General Ward", "ICU"].map((item, index) => <div key={item} className="flex items-center gap-2"><div className={cn("rounded-lg border px-3 py-2 text-[10px] font-medium", index > 1 && simulationRun ? "border-command-red/30 bg-command-red/8 text-command-red" : "border-command-cyan/25 bg-command-cyan/8 text-command-cyan")}>{item}</div>{index < 6 && <ArrowRight size={14} className="text-muted-foreground" />}</div>)}</div></Panel><Panel title="AI recommended actions" meta="Actions prioritized for projected improvement"><div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">{recommendations.map((item, index) => <div key={item.title} className="rounded-lg border border-command-border bg-command/35 p-4"><div className="flex items-center justify-between"><span className={cn("text-[9px] font-bold tracking-[0.13em]", index === 0 ? "text-command-red" : index === 1 ? "text-command-amber" : "text-command-cyan")}>{item.priority}</span><span className="mono-data text-[9px] text-command-green">{item.improvement}</span></div><div className="mt-3 text-[11px] font-semibold leading-5 text-foreground">{item.title}</div><div className="mt-2 text-[10px] leading-4 text-muted-foreground">{item.reason}</div></div>)}</div></Panel></div></div></div>; }
+function SimulatorPage({ scenario, setScenario, simulating, simulationRun, onRun }: { scenario: typeof simulatorDefaults; setScenario: (value: typeof simulatorDefaults) => void; simulating: boolean; simulationRun: boolean; onRun: () => void }) {
+  const result = api.getScenario(scenario.surge);
+  const isMassCasualty = scenario.surge >= 70;
+
+  return <div className="pb-10"><PageHeader eyebrow="Simulate / Decision lab" title="Capacity Scenario Simulator" subtitle="Test operational decisions before they impact patients." action={<div className="flex items-center gap-2 rounded border border-command-cyan/20 bg-command-cyan/5 px-3 py-2 text-[10px] text-command-cyan"><Cpu size={14} /> Simulation engine ready</div>} /><div className="grid gap-5 xl:grid-cols-[340px_1fr]"><Panel title="Scenario controls" meta="Adjust demand and operational capacity"><div className="p-5">{([ ["Patient arrival surge", "surge", -20, 100, "%"], ["Emergency demand", "emergency", 40, 120, "%"], ["Bed capacity", "beds", 40, 100, "%"], ["CT capacity", "ct", 40, 120, "%"], ["MRI capacity", "mri", 20, 100, "%"], ["Staff availability", "staff", 40, 120, "%"], ["Scheduled procedures", "procedures", 20, 100, "%" ]] as const).map(([label, key, min, max, unit]) => <label key={key} className="mb-5 block"><div className="mb-2 flex justify-between text-[10px]"><span className="text-foreground">{label}</span><span className="mono-data text-command-cyan">{scenario[key]}{unit}</span></div><input type="range" min={min} max={max} value={scenario[key]} onChange={(event) => setScenario({ ...scenario, [key]: Number(event.target.value) })} className="w-full accent-command-cyan" /></label>)}<div className="mt-6 border-t border-command-border pt-5"><div className="mb-3 text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Preset scenarios</div><div className="grid grid-cols-2 gap-2">{["Normal day", "Patient surge +30%", "Flu outbreak", "CT failure", "Staff shortage", "Mass casualty event"].map((preset) => <button key={preset} className={cn("rounded-md border border-command-border px-2 py-2 text-left text-[9px] transition-all", preset.includes("casualty") ? "bg-command-red/10 border-command-red/30 text-command-red font-bold hover:bg-command-red/20" : "bg-command/35 text-muted-foreground hover:border-command-cyan/40 hover:text-foreground")} onClick={() => {
+    if (preset.includes("casualty")) {
+      setScenario({ surge: 80, emergency: 95, beds: 96, ct: 108, mri: 60, staff: 50, procedures: 30 });
+    } else if (preset.includes("surge")) {
+      setScenario({ ...scenario, surge: 30, emergency: 80, beds: 82, ct: 78, mri: 45, staff: 85, procedures: 60 });
+    } else if (preset.includes("Flu")) {
+      setScenario({ ...scenario, surge: 55, emergency: 88, beds: 90, ct: 70, mri: 40, staff: 70, procedures: 50 });
+    } else if (preset.includes("CT")) {
+      setScenario({ ...scenario, surge: 20, emergency: 75, beds: 78, ct: 115, mri: 85, staff: 88, procedures: 64 });
+    } else if (preset.includes("staff")) {
+      setScenario({ ...scenario, surge: 25, emergency: 70, beds: 74, ct: 68, mri: 45, staff: 40, procedures: 35 });
+    } else {
+      setScenario(simulatorDefaults);
+    }
+  }}>{preset}</button>)}</div></div><Button onClick={onRun} disabled={simulating} className="mt-6 w-full bg-command-cyan text-primary-foreground text-[10px]">{simulating ? <><RefreshCw size={13} className="animate-spin" /> AI simulation running...</> : <><Play size={13} /> Run simulation</>}</Button></div></Panel><div className="space-y-5"><Panel title="Simulation result" meta={simulationRun ? (isMassCasualty ? "Mass Casualty Surge Model Completed · Critical Overload" : "Model completed · Updated just now") : "Current state vs simulated state"} action={
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[9px] font-bold tracking-[0.14em]",
+                    simulationRun
+                      ? isMassCasualty
+                        ? "border border-command-red/40 bg-command-red/20 text-command-red animate-pulse"
+                        : "bg-command-red/12 text-command-red"
+                      : "bg-command-green/10 text-command-green"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "size-1.5 rounded-full",
+                      simulationRun
+                        ? isMassCasualty
+                          ? "bg-command-red animate-ping"
+                          : "bg-command-red"
+                        : "bg-command-green"
+                    )}
+                  />
+                  {simulationRun
+                    ? isMassCasualty
+                      ? "MASS CASUALTY CRITICAL"
+                      : "HIGH PROJECTED RISK"
+                    : "BASELINE STABLE"}
+                </span>
+              }><div className="grid gap-3 p-4 sm:grid-cols-5">{[["Beds", 72, result.beds], ["Emergency", 68, result.emergency], ["CT", 71, result.ct], ["Laboratory", 64, result.laboratory], ["ICU", 61, result.icu]].map(([label, current, projected]) => <div key={label as string} className="rounded-lg border border-command-border bg-command/35 p-3"><div className="text-[10px] text-muted-foreground">{label as string}</div><div className="mt-3 flex items-end justify-between"><span className="mono-data text-xl text-foreground">{simulationRun ? projected : current}%</span><span className="text-[9px] text-muted-foreground">{simulationRun ? <ArrowUpRight size={12} className="inline text-command-red" /> : "current"}</span></div><div className="mt-2 h-1 rounded-full bg-command-border"><div className={cn("h-full rounded-full", Number(projected) > 90 ? "bg-command-red" : "bg-command-cyan")} style={{ width: `${simulationRun ? Math.min(100, Number(projected)) : Number(current)}%` }} /></div><div className="mt-2 text-[9px] text-muted-foreground">{simulationRun ? `from ${current}%` : "baseline"}</div></div>)}</div></Panel><Panel title="Scenario impact propagation" meta="Projected pressure travels through connected departments"><div className="flex flex-wrap items-center justify-center gap-2 p-8 text-center sm:gap-3">{["Patient surge", "Emergency", "Beds", "CT + Laboratory", "Treatment", "General Ward", "ICU"].map((item, index) => <div key={item} className="flex items-center gap-2"><div className={cn("rounded-lg border px-3 py-2 text-[10px] font-medium", index > 1 && simulationRun ? "border-command-red/30 bg-command-red/8 text-command-red" : "border-command-cyan/25 bg-command-cyan/8 text-command-cyan")}>{item}</div>{index < 6 && <ArrowRight size={14} className="text-muted-foreground" />}</div>)}</div></Panel><Panel title="AI recommended actions" meta="Actions prioritized for projected improvement"><div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">{recommendations.map((item, index) => <div key={item.title} className="rounded-lg border border-command-border bg-command/35 p-4"><div className="flex items-center justify-between"><span className={cn("text-[9px] font-bold tracking-[0.13em]", index === 0 ? "text-command-red" : index === 1 ? "text-command-amber" : "text-command-cyan")}>{item.priority}</span><span className="mono-data text-[9px] text-command-green">{item.improvement}</span></div><div className="mt-3 text-[11px] font-semibold leading-5 text-foreground">{item.title}</div><div className="mt-2 text-[10px] leading-4 text-muted-foreground">{item.reason}</div></div>)}</div></Panel></div></div></div>;
+}
+
 
 function ResourcePage() { return <div className="pb-10"><PageHeader eyebrow="Measure / Utilization" title="Resource Intelligence" subtitle="Find hidden capacity before adding more infrastructure." /><Panel title="Resource utilization heatmap" meta="Current utilization by department and hour"><div className="overflow-x-auto p-5"><div className="min-w-[700px]"><div className="grid grid-cols-[130px_repeat(12,1fr)] gap-1 text-[9px] text-muted-foreground"><span />{["08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"].map((hour) => <span key={hour} className="text-center">{hour}:00</span>)}{departments.map((department, row) => <div key={department.name} className="contents"><span className="flex items-center pr-3 text-[10px] text-foreground">{department.name}</span>{Array.from({ length: 12 }, (_, index) => { const value = Math.min(99, department.utilization + (index - 5) * 2 + ((row + index) % 3) * 3); return <div key={`${department.name}-${index}`} title={`${department.name} ${value}%`} className={cn("h-8 rounded-sm", value > 90 ? "bg-command-red/75" : value > 80 ? "bg-command-amber/70" : value > 65 ? "bg-command-cyan/45" : "bg-command-green/30")} />; })}</div>)}</div><div className="mt-5 flex items-center justify-end gap-3 text-[9px] text-muted-foreground"><span>Low</span><span className="size-3 rounded-sm bg-command-green/30" /><span className="size-3 rounded-sm bg-command-cyan/45" /><span className="size-3 rounded-sm bg-command-amber/70" /><span className="size-3 rounded-sm bg-command-red/75" /><span>Critical</span></div></div></div></Panel><div className="mt-5 grid gap-5 md:grid-cols-2"><Panel title="Underutilized resources" meta="Capacity available for intelligent redistribution"><div className="divide-y divide-command-border/60">{resources.filter((resource) => resource.utilization < 60).map((resource) => <div key={resource.name} className="flex items-center justify-between p-4"><div className="flex items-center gap-3"><ResourceIcon icon={resource.icon} /><div><div className="text-[11px] font-semibold text-foreground">{resource.name}</div><div className="mt-1 text-[10px] text-muted-foreground">Consider redirecting workload from Radiology Unit B.</div></div></div><div className="text-right"><div className="mono-data text-xl text-command-green">{resource.utilization}%</div><div className="text-[9px] text-muted-foreground">available {100 - resource.utilization}%</div></div></div>)}</div></Panel><Panel title="Efficiency signals" meta="AI-generated operational opportunities"><div className="space-y-3 p-4">{["MRI has 58% available capacity during the next 6 hours.", "Pediatrics can absorb 8% of non-urgent ward demand.", "Operating rooms have a 42-minute gap at 15:00."].map((item, index) => <div key={item} className="flex gap-3 rounded-lg border border-command-border bg-command/35 p-3"><Lightbulb size={15} className="mt-0.5 shrink-0 text-command-amber" /><div className="text-[10px] leading-5 text-foreground">{item}<div className="mt-1 text-[9px] text-command-cyan">Potential impact: {index === 0 ? "-6% Radiology pressure" : index === 1 ? "+8 protected beds" : "+1 procedure slot"}</div></div></div>)}</div></Panel></div></div>; }
 
@@ -201,4 +370,4 @@ function ProceduresPage() { return <div className="pb-10"><PageHeader eyebrow="A
 
 function RecommendationsPage({ onSimulator }: { onSimulator: () => void }) { return <div className="pb-10"><PageHeader eyebrow="Act / AI operations" title="Operational Recommendations" subtitle="Explainable actions that protect capacity before congestion occurs." action={<Button onClick={onSimulator} size="sm" className="bg-command-cyan text-primary-foreground text-[10px]"><Workflow size={13} /> Apply to simulator</Button>} /><div className="grid gap-4 lg:grid-cols-3">{recommendations.map((item, index) => <Panel key={item.title} className={cn("p-5", index === 0 && "border-command-red/30")}><div className="flex items-center justify-between"><span className={cn("text-[9px] font-bold tracking-[0.17em]", index === 0 ? "text-command-red" : index === 1 ? "text-command-amber" : "text-command-cyan")}>{item.priority}</span><Sparkles size={16} className="text-command-cyan" /></div><h2 className="mt-5 text-[15px] font-semibold leading-6 text-foreground">{item.title}</h2><div className="mt-5 space-y-3 text-[10px]"><div><span className="text-muted-foreground">Reason</span><p className="mt-1 leading-5 text-foreground">{item.reason}</p></div><div className="flex justify-between border-t border-command-border pt-3"><span className="text-muted-foreground">Impact</span><RiskBadge risk={item.impact} /></div><div className="flex justify-between"><span className="text-muted-foreground">Expected improvement</span><span className="font-mono text-command-green">{item.improvement}</span></div></div><div className="mt-5 flex gap-2"><Button size="sm" className="flex-1 bg-command-cyan text-primary-foreground text-[10px]">Apply scenario</Button><Button size="sm" variant="outline" className="border-command-border text-[10px]">Analysis</Button></div></Panel>)}</div></div>; }
 
-function ReportsPage() { return <div className="pb-10"><PageHeader eyebrow="Review / Intelligence archive" title="Hospital Intelligence Reports" subtitle="Decision-ready summaries for daily operations and leadership review." action={<Button size="sm" className="bg-command-cyan text-primary-foreground text-[10px]"><FileText size={13} /> Generate report</Button>} /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{["Daily Capacity Report", "Weekly Bottleneck Report", "Resource Efficiency Report", "Forecast Accuracy Report", "Scenario Analysis Report"].map((report, index) => <Panel key={report} className="group p-5 transition-transform hover:-translate-y-0.5"><div className="flex items-start justify-between"><div className="grid size-10 place-items-center rounded-lg bg-command-cyan/10 text-command-cyan"><FileBarChart size={18} /></div><span className="mono-data text-[9px] text-muted-foreground">SEP {10 - index}</span></div><h2 className="mt-5 text-[13px] font-semibold text-foreground">{report}</h2><p className="mt-2 text-[10px] leading-5 text-muted-foreground">Generated from the CareCast operational intelligence model.</p><div className="mt-5 flex gap-2"><Button size="sm" variant="outline" className="border-command-border text-[10px]"><FileText size={12} /> View</Button><Button size="sm" variant="ghost" className="text-[10px] text-command-cyan"><Download size={12} /> Export</Button></div></Panel>)}</div><div className="mt-5 command-panel rounded-xl p-5"><div className="flex items-center gap-3"><TableProperties size={18} className="text-command-cyan" /><div><div className="text-[12px] font-semibold text-foreground">Export center</div><div className="mt-1 text-[10px] text-muted-foreground">Frontend preview exports are simulated until a reporting service is connected.</div></div><Button variant="outline" size="sm" className="ml-auto border-command-border text-[10px]"><Download size={13} /> Download CSV</Button></div></div></div>; }
+function ReportsPage() { return <div className="pb-10"><PageHeader eyebrow="Review / Intelligence archive" title="Hospital Intelligence Reports" subtitle="Decision-ready summaries for daily operations and leadership review." action={<Button size="sm" className="bg-command-cyan text-primary-foreground text-[10px]"><FileText size={13} /> Generate report</Button>} /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{["Daily Capacity Report", "Weekly Bottleneck Report", "Resource Efficiency Report", "Forecast Accuracy Report", "Scenario Analysis Report"].map((report, index) => <Panel key={report} className="group p-5 transition-transform hover:-translate-y-0.5"><div className="flex items-start justify-between"><div className="grid size-10 place-items-center rounded-lg bg-command-cyan/10 text-command-cyan"><FileBarChart size={18} /></div><span className="mono-data text-[9px] text-muted-foreground">SEP {10 - index}</span></div><h2 className="mt-5 text-[13px] font-semibold text-foreground">{report}</h2><p className="mt-2 text-[10px] leading-5 text-muted-foreground">Generated from the CareCast operational intelligence model.</p><div className="mt-5 flex gap-2"><Button size="sm" variant="outline" className="border-command-border text-[10px]"><FileText size={12} /> View</Button><Button size="sm" variant="ghost" className="text-[10px] text-command-cyan"><Download size={12} /> Export</Button></div></Panel>)}</div><div className="mt-5 command-panel rounded-xl p-5"><div className="flex items-center gap-3"><TableProperties size={18} className="text-command-cyan" /><div><div className="text-[12px] font-semibold text-foreground">Export Intelligence Center</div><div className="mt-1 text-[10px] text-muted-foreground">Download comprehensive capacity logs, predictive forecasts, and incident summaries in standard CSV format.</div></div><Button variant="outline" size="sm" className="ml-auto border-command-border text-[10px]"><Download size={13} /> Download CSV</Button></div></div></div>; }

@@ -1,0 +1,8 @@
+resource,department,capacity,resource_type
+Emergency Beds,Emergency,50,beds
+General Beds,General Ward,200,beds
+ICU Beds,ICU,30,beds
+CT Scanner,Radiology,12,diagnostic_slots
+MRI,Radiology,8,diagnostic_slots
+Laboratory,Laboratory,55,diagnostic_slots
+Operating Rooms,Operating Room,8,procedure_slots
