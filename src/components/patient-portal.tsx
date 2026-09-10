@@ -106,7 +106,8 @@ const CAUSES: CauseConfig[] = [
 
 function lifecycleTone(step: AlertLifecycleStep) {
   if (step === "RESOLVED") return "text-command-green border-command-green/40 bg-command-green/10";
-  if (step === "PATIENT ARRIVED" || step === "READY") return "text-command-cyan border-command-cyan/30 bg-command-cyan/10";
+  if (step === "READY") return "text-command-green border-command-green/40 bg-command-green/10";
+  if (step === "PATIENT ARRIVED") return "text-command-cyan border-command-cyan/30 bg-command-cyan/10";
   if (step === "ACKNOWLEDGED" || step === "PREPARING") return "text-command-amber border-command-amber/30 bg-command-amber/10";
   if (step === "SENT" || step === "DELIVERED") return "text-command-amber border-command-amber/30 bg-command-amber/10";
   return "text-muted-foreground border-command-border bg-command/40";
@@ -173,7 +174,7 @@ export function PatientPortal({ onEmergencyReported }: { onEmergencyReported?: (
   // Submit emergency (never throws - falls back to localStorage)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.incidentType || !form.patientName || !form.location) return;
+    if (!form.incidentType || !form.location) return;
     setSubmitting(true);
 
     const report: PatientReport = {
@@ -197,16 +198,16 @@ export function PatientPortal({ onEmergencyReported }: { onEmergencyReported?: (
     setSubmitSuccess(true);
     setShowForm(false);
     setSelectedCause(null);
-    setForm({ incidentType: "", patientName: "", patientAge: "", contactNumber: "", location: "", severity: "HIGH", description: "" });
+    setForm({ incidentType: "", patientName: "", patientAge: "", contactNumber: "", location: "", severity: "HIGH", description: "" }); // fields kept in state for type compat
     onEmergencyReported?.();
     setSubmitting(false);
     setTimeout(() => setSubmitSuccess(false), 5000);
   };
 
-  // Poll for lifecycle updates written by hospital (main page) every 5s
+  // Poll for lifecycle updates written by hospital every 30s
   useEffect(() => {
     if (!loggedIn) return;
-    const id = setInterval(loadReports, 5000);
+    const id = setInterval(loadReports, 30_000);
     return () => clearInterval(id);
   }, [loggedIn, loadReports]);
 
@@ -538,24 +539,6 @@ export function PatientPortal({ onEmergencyReported }: { onEmergencyReported?: (
                     className="w-full rounded-lg border border-command-border bg-command px-3 py-2 text-foreground focus:border-command-cyan focus:outline-none" />
                 </div>
                 <div>
-                  <label className="mb-1 block font-semibold text-muted-foreground">Your Name *</label>
-                  <input required type="text" placeholder="Full name"
-                    value={form.patientName} onChange={(e) => setForm({ ...form, patientName: e.target.value })}
-                    className="w-full rounded-lg border border-command-border bg-command px-3 py-2 text-foreground focus:border-command-cyan focus:outline-none" />
-                </div>
-                <div>
-                  <label className="mb-1 block font-semibold text-muted-foreground">Age</label>
-                  <input type="number" min={1} max={120} placeholder="Age"
-                    value={form.patientAge} onChange={(e) => setForm({ ...form, patientAge: e.target.value })}
-                    className="w-full rounded-lg border border-command-border bg-command px-3 py-2 text-foreground focus:border-command-cyan focus:outline-none" />
-                </div>
-                <div>
-                  <label className="mb-1 block font-semibold text-muted-foreground">Contact Number</label>
-                  <input type="tel" placeholder="+91 XXXXX XXXXX"
-                    value={form.contactNumber} onChange={(e) => setForm({ ...form, contactNumber: e.target.value })}
-                    className="w-full rounded-lg border border-command-border bg-command px-3 py-2 text-foreground focus:border-command-cyan focus:outline-none" />
-                </div>
-                <div>
                   <label className="mb-1 block font-semibold text-muted-foreground">Severity</label>
                   <select value={form.severity} onChange={(e) => setForm({ ...form, severity: e.target.value as EmergencySeverity })}
                     className="w-full rounded-lg border border-command-border bg-command px-3 py-2 text-foreground focus:border-command-cyan focus:outline-none">
@@ -657,10 +640,7 @@ function ReportCard({ report }: { report: PatientReport }) {
             {report.location}
           </a>
         </span>
-        <span className="flex items-center gap-1.5"><User size={12} className="shrink-0 text-command-cyan" />{report.patientName}{report.patientAge ? `, ${report.patientAge}y` : ""}</span>
-        {report.contactNumber && (
-          <span className="flex items-center gap-1.5"><Phone size={12} className="shrink-0 text-command-cyan" />{report.contactNumber}</span>
-        )}
+
       </div>
       {report.description && (
         <p className="mt-2 text-[11px] leading-5 text-muted-foreground">{report.description}</p>

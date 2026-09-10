@@ -70,20 +70,22 @@ export async function insertEmergency(report: PatientReport): Promise<PatientRep
 }
 
 export async function fetchEmergencies(patientId?: string): Promise<PatientReport[]> {
-  try {
-    const qs = patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
-    const data = await api<{ emergencies: PatientReport[] }>(`/api/emergencies${qs}`);
-    // Merge with any local-only records (submitted while offline)
-    const local = lsLoad().filter((r) => !patientId || r.patientId === patientId);
-    const serverIds = new Set(data.emergencies.map((r) => r.caseId));
-    const localOnly = local.filter((r) => !serverIds.has(r.caseId));
-    // Prefer server lifecycle but keep local-only records
-    return [...localOnly, ...data.emergencies];
-  } catch {
-    // Backend offline — always re-read localStorage so lifecycle updates are fresh
-    const local = lsLoad();
-    return patientId ? local.filter((r) => r.patientId === patientId) : local;
-  }
+  // Always return localStorage immediately — never block on backend
+  const local = lsLoad();
+  const localFiltered = patientId ? local.filter((r) => r.patientId === patientId) : local;
+  // Fire-and-forget backend sync in background
+  const qs = patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), 2000);
+  fetch(`${BASE}/api/emergencies${qs}`, { signal: ctrl.signal, headers: { "Content-Type": "application/json" } })
+    .then((res) => res.ok ? res.json() as Promise<{ emergencies: PatientReport[] }> : Promise.reject())
+    .then((data) => {
+      const serverIds = new Set(data.emergencies.map((r: PatientReport) => r.caseId));
+      const localOnly = local.filter((r) => !serverIds.has(r.caseId));
+      lsSave([...localOnly, ...data.emergencies]);
+    })
+    .catch(() => { /* backend offline — local data is already returned */ });
+  return localFiltered;
 }
 
 export async function updateLifecycle(caseId: string, lifecycle: AlertLifecycleStep): Promise<void> {

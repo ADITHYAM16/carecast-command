@@ -80,11 +80,10 @@ export function EmergencyResponseView({
     });
   }, [patientReportedCases]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>(
-    initialEmergencyCases[0].id
+    initialEmergencyCases[0]?.id ?? ""
   );
   const [intakeModalOpen, setIntakeModalOpen] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(12 * 60);
-  const [escalationTimer, setEscalationTimer] = useState(48);
   const [auditLog, setAuditLog] = useState<string[]>([
     "06:42:01 — Incident telemetry logged via Regional EMS Dispatch",
     "06:42:15 — Predictive engine routed notifications to 5 clinical response units",
@@ -104,26 +103,13 @@ export function EmergencyResponseView({
   });
 
   const activeCase = useMemo(() => {
-    return cases.find((c) => c.id === selectedCaseId) || cases[0];
-  }, [cases, selectedCaseId]);
+    return cases.find((c) => c.id === selectedCaseId) ?? cases[0] ?? initialEmergencyCases[0];
+  }, [cases, selectedCaseId]) as EmergencyCase;
 
   // ETA Ticking Timer
   useEffect(() => {
     const timer = setInterval(() => {
       setCountdownSeconds((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Escalation Countdown Timer
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setEscalationTimer((prev) => {
-        if (prev <= 1) {
-          return 60;
-        }
-        return prev - 1;
-      });
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -660,175 +646,6 @@ export function EmergencyResponseView({
               </div>
             );
           })}
-        </div>
-      </div>
-
-      {/* 2-Column Section: Role-Based Routing & Automated Escalation */}
-      <div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
-        {/* Left: Role-Based Intelligent Alert Routing */}
-        <div className="command-panel rounded-xl p-5">
-          <div className="flex items-center justify-between border-b border-command-border/70 pb-3">
-            <div>
-              <h2 className="text-[12px] font-bold uppercase tracking-[0.14em] text-foreground flex items-center gap-2">
-                <Users size={15} className="text-command-cyan" /> Role-Based Emergency Routing
-              </h2>
-              <p className="mt-0.5 text-[10px] text-muted-foreground">
-                Targeted alerts dispatched directly to assigned clinical personnel
-              </p>
-            </div>
-            <span className="rounded-full bg-command-cyan/10 border border-command-cyan/20 px-2 py-0.5 text-[9px] text-command-cyan font-mono">
-              5 TEAMS ACTIVE
-            </span>
-          </div>
-
-          <div className="mt-4 divide-y divide-command-border/60 space-y-3">
-            {activeCase.roles.map((r) => {
-              const isAck = r.status === "ACKNOWLEDGED";
-              const isPrep = r.status === "PREPARING";
-
-              return (
-                <div
-                  key={r.id}
-                  className="flex flex-col gap-2 pt-3 first:pt-0 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="space-y-0.5 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-foreground">
-                        {r.role}
-                      </span>
-                      <span className="text-[9px] text-muted-foreground">
-                        ({r.department})
-                      </span>
-                      {r.urgency === "CRITICAL" && (
-                        <span className="rounded bg-command-red/15 px-1.5 py-0.2 text-[8px] font-bold text-command-red">
-                          URGENT
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[10px] text-command-cyan font-medium">
-                      {r.assignee}
-                    </div>
-                    <div className="text-[9px] text-muted-foreground">
-                      <strong className="text-foreground">Direct Action:</strong>{" "}
-                      {r.action}
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-end">
-                    <span
-                      className={cn(
-                        "rounded px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider",
-                        isAck
-                          ? "bg-command-green/15 text-command-green border border-command-green/30"
-                          : isPrep
-                          ? "bg-command-cyan/15 text-command-cyan border border-command-cyan/30"
-                          : "bg-command-amber/15 text-command-amber border border-command-amber/30 animate-pulse"
-                      )}
-                    >
-                      {r.status}
-                    </span>
-                    {r.ackTime && (
-                      <span className="font-mono text-[8px] text-muted-foreground">
-                        Ack: {r.ackTime}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Right: Automated Escalation Hierarchy & Timers */}
-        <div className="command-panel rounded-xl p-5 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between border-b border-command-border/70 pb-3">
-              <div>
-                <h2 className="text-[12px] font-bold uppercase tracking-[0.14em] text-foreground flex items-center gap-2">
-                  <ShieldAlert size={15} className="text-command-amber" /> Escalation Hierarchy
-                </h2>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  Automated failover protocol if primary alert is unacknowledged
-                </p>
-              </div>
-              <div className="mono-data text-[10px] font-semibold text-command-amber">
-                FAILOVER TIMER: {escalationTimer}s
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              {activeCase.escalation.map((tier, idx) => {
-                const isActive = tier.status === "ACTIVE";
-                const isResolved =
-                  tier.status === "RESOLVED" ||
-                  tier.status === "ACKNOWLEDGED";
-
-                return (
-                  <div
-                    key={tier.tier}
-                    className={cn(
-                      "relative rounded-lg border p-3 transition-all",
-                      isActive
-                        ? "border-command-amber/50 bg-command-amber/[0.06] shadow-[0_0_12px_oklch(0.8_0.15_82/10%)]"
-                        : isResolved
-                        ? "border-command-green/30 bg-command-green/[0.04]"
-                        : "border-command-border/60 bg-command/30 opacity-70"
-                    )}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[9px] font-bold text-muted-foreground">
-                            TIER {tier.tier}
-                          </span>
-                          <span className="text-[10px] font-bold text-foreground">
-                            {tier.level}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-[11px] font-semibold text-foreground">
-                          {tier.name}
-                        </div>
-                        <div className="text-[9px] text-muted-foreground">
-                          {tier.role} · {tier.contact}
-                        </div>
-                      </div>
-
-                      <span
-                        className={cn(
-                          "rounded px-2 py-0.5 text-[8px] font-bold uppercase",
-                          isActive
-                            ? "bg-command-amber/20 text-command-amber border border-command-amber/40 animate-pulse"
-                            : isResolved
-                            ? "bg-command-green/20 text-command-green"
-                            : "bg-command-border/40 text-muted-foreground"
-                        )}
-                      >
-                        {tier.status}
-                      </span>
-                    </div>
-
-                    {idx < activeCase.escalation.length - 1 && (
-                      <div className="absolute -bottom-3 left-6 z-10 size-4 place-items-center rounded-full bg-command-border text-[8px] text-muted-foreground grid">
-                        ↓
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-lg border border-command-border/70 bg-command/40 p-3">
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="text-muted-foreground">Escalation Rule:</span>
-              <span className="text-command-green font-semibold">
-                Level-1 Trauma Auto-Dispatch
-              </span>
-            </div>
-            <div className="mt-1 text-[9px] text-muted-foreground">
-              If Tier 1 fails to acknowledge within 60 seconds, alert automatically escalates to Tier 2 on-call specialist.
-            </div>
-          </div>
         </div>
       </div>
 

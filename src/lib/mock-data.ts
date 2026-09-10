@@ -25,7 +25,7 @@ export const hospital = {
   currentUtilization: 78,
   predictedPeak: 94,
   timeToCritical: "3h 12m",
-  lastUpdated: "10 seconds ago",
+  lastUpdated: "1 hour ago",
 };
 
 export const resources: Resource[] = [
@@ -91,7 +91,7 @@ export const networkEdges = [
 export const simulatorDefaults = { surge: 30, emergency: 72, beds: 76, ct: 68, mri: 45, staff: 88, procedures: 64 };
 
 export type EmergencySeverity = "CRITICAL" | "HIGH" | "MODERATE";
-export type ReadinessStatus = "READY" | "LIMITED" | "CRITICAL";
+export type ReadinessStatus = "READY" | "LIMITED" | "CRITICAL" | "HIGH";
 export type AlertLifecycleStep = "CREATED" | "SENT" | "DELIVERED" | "ACKNOWLEDGED" | "PREPARING" | "READY" | "PATIENT ARRIVED" | "RESOLVED";
 
 export const patientLifecycleStages: { key: AlertLifecycleStep; label: string; desc: string }[] = [

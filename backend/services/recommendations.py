@@ -20,6 +20,7 @@ def get_recommendations() -> list:
         recs.append({
             "priority": "URGENT",
             "title": f"Prepare {extra} additional emergency beds.",
+            "action": f"Prepare {extra} additional emergency beds.",
             "reason": f"Bed utilization expected to exceed 95% in 2h 47m.",
             "impact": "HIGH",
             "improvement": "-8% peak congestion",
@@ -30,6 +31,7 @@ def get_recommendations() -> list:
         recs.append({
             "priority": "URGENT",
             "title": "Redistribute 10 CT slots to Emergency priority.",
+            "action": "Redistribute 10 CT slots to Emergency priority.",
             "reason": "Radiology demand is tracking 15% above hourly pattern.",
             "impact": "HIGH",
             "improvement": "-42m diagnostic delay",
@@ -40,6 +42,7 @@ def get_recommendations() -> list:
         recs.append({
             "priority": "OPTIMIZATION",
             "title": "Review 6 elective procedures scheduled in next 6 hours.",
+            "action": "Review 6 elective procedures scheduled in next 6 hours.",
             "reason": f"Projected ICU pressure rises after the 17:00 procedure block.",
             "impact": "MEDIUM",
             "improvement": "+6 ICU beds protected",
@@ -50,6 +53,7 @@ def get_recommendations() -> list:
         recs.append({
             "priority": "PREVENTIVE",
             "title": "Increase laboratory staffing for stat order processing.",
+            "action": "Increase laboratory staffing for stat order processing.",
             "reason": "Lab utilization trending upward with emergency demand.",
             "impact": "MEDIUM",
             "improvement": "-15m turnaround time",
@@ -60,6 +64,7 @@ def get_recommendations() -> list:
         recs.append({
             "priority": "EFFICIENCY",
             "title": "Redirect MRI workload from Radiology Unit B.",
+            "action": "Redirect MRI workload from Radiology Unit B.",
             "reason": f"MRI utilization at {state['mri_utilization']}% — significant available capacity.",
             "impact": "LOW",
             "improvement": "+58% MRI throughput available",
@@ -70,6 +75,7 @@ def get_recommendations() -> list:
         recs.append({
             "priority": "PREVENTIVE",
             "title": "Review ICU step-down candidates to free critical beds.",
+            "action": "Review ICU step-down candidates to free critical beds.",
             "reason": "ICU occupancy elevated; downstream pressure from emergency surge expected.",
             "impact": "HIGH",
             "improvement": "+4 ICU beds available",

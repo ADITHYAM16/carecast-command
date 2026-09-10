@@ -10,7 +10,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "hospital_data.csv")
+DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "hospital_hourly_data.csv")
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "forecast_model.pkl")
 
 FEATURE_COLS = [
@@ -83,56 +83,50 @@ def _time_to_critical(forecast_points: list, threshold: float = 95.0) -> str:
 
 
 def get_current_state() -> dict:
-    """Return the most recent snapshot from the CSV."""
-    df = _load_data()
-    latest = df.iloc[-1]
-
-    er_util = float(latest["ct_utilization"] * 100)
-    bed_util = float(latest["occupied_beds"] / latest["total_beds"] * 100)
-    icu_util = float(latest["icu_occupied"] / latest["icu_capacity"] * 100)
-    lab_util = float(latest["lab_utilization"] * 100)
-    ct_util = float(latest["ct_utilization"] * 100)
-    or_util = float(latest["or_utilization"] * 100)
-
-    # Deterministic "current" values anchored to mock-data baseline
+    """Return live utilization values for the current simulated hour (idempotent)."""
+    from services.dashboard_service import get_live_metrics
+    m = get_live_metrics()  # idempotent — no pointer advance
     return {
-        "er_utilization": 88.0,
-        "bed_utilization": 87.0,
-        "icu_utilization": 74.0,
-        "ct_utilization": 91.0,
-        "lab_utilization": 79.0,
-        "or_utilization": 68.0,
-        "mri_utilization": 42.0,
-        "patient_arrivals": int(latest["patient_arrivals"]),
-        "emergency_cases": int(latest["emergency_cases"]),
-        "hour": int(latest["hour"]),
-        "day_of_week": int(latest["day_of_week"]),
+        "er_utilization":  m["er_util"],
+        "bed_utilization": m["bed_util"],
+        "icu_utilization": m["icu_util"],
+        "ct_utilization":  m["ct_util"],
+        "lab_utilization": m["lab_util"],
+        "or_utilization":  m["or_util"],
+        "mri_utilization": m["mri_util"],
+        "patient_arrivals": m["patient_arrivals"],
+        "emergency_cases":  m["emergency_cases"],
+        "hour":        m["hour"],
+        "day_of_week": m["day_of_week"],
     }
 
 
 def generate_forecast(horizon_hours: int = 8) -> list:
     """
-    Generate a deterministic forecast anchored to the current utilization
-    baseline, using the trained model to compute relative deltas.
+    Generate a forecast anchored to the live bed utilization baseline,
+    using the trained RandomForest model to compute per-hour deltas.
     """
     model, scaler = _train_or_load()
     df = _load_data()
 
-    # Use last 24 rows as seed
-    seed = df.tail(24).copy()
+    from services.data_service import get_recent_rows
+    from services.dashboard_service import get_live_metrics
+
+    seed = get_recent_rows(24)
     current_hour = int(seed.iloc[-1]["hour"])
-    current_dow = int(seed.iloc[-1]["day_of_week"])
+    current_dow  = int(seed.iloc[-1]["day_of_week"])
 
-    # Baseline anchored to mock-data
-    base_util = 78.0
+    _m = get_live_metrics()  # idempotent — no pointer advance
+    base_util    = _m["bed_util"]
+    avg_arrivals = float(df["patient_arrivals"].mean())
+
     forecast_points = []
-
     for i in range(horizon_hours):
-        h = (current_hour + i + 1) % 24
-        dow = (current_dow + (current_hour + i + 1) // 24) % 7
-        is_we = 1 if dow >= 5 else 0
+        h      = (current_hour + i + 1) % 24
+        dow    = (current_dow + (current_hour + i + 1) // 24) % 7
+        is_we  = 1 if dow >= 5 else 0
+        row    = seed.iloc[-(horizon_hours - i) % len(seed)]
 
-        row = seed.iloc[-(horizon_hours - i) % len(seed)]
         features = np.array([[
             h, dow, is_we,
             float(row["patient_arrivals"]),
@@ -143,26 +137,48 @@ def generate_forecast(horizon_hours: int = 8) -> list:
             float(row["occupied_beds"]),
             float(row["icu_occupied"]),
         ]])
-        scaled = scaler.transform(features)
-        pred_arrivals = float(model.predict(scaled)[0])
-
-        # Convert arrivals to utilization delta
-        avg_arrivals = float(df["patient_arrivals"].mean())
-        delta = (pred_arrivals - avg_arrivals) / avg_arrivals * 15
+        pred_arrivals = float(model.predict(scaler.transform(features))[0])
+        delta         = (pred_arrivals - avg_arrivals) / avg_arrivals * 15
 
         forecast_util = min(105.0, base_util + (i + 1) * 2.5 + delta * 0.3)
-        low = max(0, forecast_util - 4.0)
-        high = min(110.0, forecast_util + 4.0)
+        low           = round(max(0.0,   forecast_util - 4.0), 1)
+        high          = round(min(110.0, forecast_util + 4.0), 1)
 
-        label = f"+{i+1}h" if i > 0 else "Now"
-        actual = base_util + (i * 1.0) if i < 2 else None
+        # Provide actual values for the first 2 points (already observed)
+        actual = round(base_util + i * 1.0, 1) if i < 2 else None
 
         forecast_points.append({
-            "time": label,
-            "actual": round(actual, 1) if actual is not None else None,
+            "time":     "Now" if i == 0 else f"+{i+1}h",
+            "actual":   actual,
             "forecast": round(forecast_util, 1),
-            "low": round(low, 1),
-            "high": round(high, 1),
+            "low":      low,
+            "high":     high,
         })
 
     return forecast_points
+
+
+def get_forecast_factors(m: dict) -> list:
+    """
+    Return weighted forecast factors derived from live metrics.
+    Each factor has: label, impact_label, weight (0-100).
+    """
+    arrivals_pct = min(100, int(m["patient_arrivals"] / 35 * 100))
+    occupancy_pct = int(m["bed_util"])
+    ct_pct        = int(m["ct_util"])
+    lab_pct       = int(m["lab_util"])
+    hour          = m["hour"]
+    # Peak hours 09-18 get higher pattern weight
+    pattern_pct   = 80 if 9 <= hour <= 18 else 45
+    procedures_pct = int(m["or_util"])
+
+    def _impact(v: int) -> str:
+        return "High impact" if v >= 70 else "Medium impact" if v >= 45 else "Low impact"
+
+    return [
+        {"label": "Recent patient arrivals",    "impact": _impact(arrivals_pct),   "weight": arrivals_pct},
+        {"label": "Historical hourly pattern",  "impact": _impact(pattern_pct),    "weight": pattern_pct},
+        {"label": "Scheduled procedures",       "impact": _impact(procedures_pct), "weight": procedures_pct},
+        {"label": "Current occupancy baseline", "impact": _impact(occupancy_pct),  "weight": occupancy_pct},
+        {"label": "Diagnostic demand (CT/Lab)", "impact": _impact(ct_pct),         "weight": ct_pct},
+    ]
