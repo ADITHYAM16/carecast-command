@@ -1,17 +1,9 @@
 {
-  "buildCommand": "npm run vercel-build",
-  "outputDirectory": ".output/public",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/client",
   "framework": null,
-  "installCommand": "npm install",
-  "functions": {
-    "api/server.mjs": {
-      "includeFiles": ".output/server/**"
-    }
-  },
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api/server.mjs"
-    }
+    { "source": "/api/(.*)", "destination": "/api/server" },
+    { "source": "/(.*)", "destination": "/api/server" }
   ]
 }

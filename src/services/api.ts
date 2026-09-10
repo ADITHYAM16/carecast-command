@@ -27,8 +27,8 @@ import {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-export const API_BASE = "http://localhost:8000";
-const TIMEOUT_MS = 3000;
+export const API_BASE = (import.meta.env["VITE_API_URL"] as string | undefined) ?? "http://localhost:8000";
+const TIMEOUT_MS = 8000;
 
 // ── Connection status ─────────────────────────────────────────────────────────
 

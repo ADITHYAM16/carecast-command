@@ -323,7 +323,7 @@ function CommandCenter({ onView }: { onView: (view: View) => void }) {
       <div className="flex items-center gap-3">
         <span className="flex items-center gap-2 rounded-full border border-command-red/25 bg-command-red/10 px-3 py-1.5 text-[10px] font-semibold tracking-[0.14em] text-command-red"><span className="status-pulse size-1.5 rounded-full bg-command-red" />LIVE</span>
         <span className="hidden text-[10px] text-muted-foreground sm:inline">Updated {lastUpdated}</span>
-        {!isCurrentMode && <button onClick={refresh} title="Refresh" className="rounded p-1 text-muted-foreground hover:text-command-cyan"><RefreshCw size={13} className={loading ? "animate-spin" : ""} /></button>}
+        <button onClick={refresh} title="Refresh data" className="rounded p-1 text-muted-foreground hover:text-command-cyan"><RefreshCw size={13} className={loading ? "animate-spin" : ""} /></button>
       </div>
     } />
 

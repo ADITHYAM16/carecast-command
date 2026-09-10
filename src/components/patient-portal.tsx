@@ -207,7 +207,7 @@ export function PatientPortal({ onEmergencyReported }: { onEmergencyReported?: (
   // Poll for lifecycle updates written by hospital every 30s
   useEffect(() => {
     if (!loggedIn) return;
-    const id = setInterval(loadReports, 30_000);
+    const id = setInterval(loadReports, 3_000);
     return () => clearInterval(id);
   }, [loggedIn, loadReports]);
 

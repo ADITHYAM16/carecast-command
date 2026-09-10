@@ -3,8 +3,16 @@ CareCast AI — FastAPI Backend
 """
 import io
 import os
+import logging
 from contextlib import asynccontextmanager
 from typing import Optional
+
+# Suppress the noisy CancelledError traceback printed on Ctrl+C shutdown
+logging.getLogger("uvicorn.error").addFilter(
+    type("_ShutdownFilter", (logging.Filter,), {
+        "filter": lambda self, r: "CancelledError" not in r.getMessage()
+    })()
+)
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
@@ -67,16 +75,8 @@ app = FastAPI(title="CareCast AI", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:8080",
-        "http://127.0.0.1:8080",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:4173",
-        "http://127.0.0.1:4173",
-        FRONTEND_ORIGIN,
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
