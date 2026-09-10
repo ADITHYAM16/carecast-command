@@ -1,10 +1,15 @@
 """
 CareCast AI — FastAPI Backend
 """
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+import os
+from contextlib import asynccontextmanager
 from typing import Optional
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel
 
 from services.forecast import get_current_state, generate_forecast, _risk_label
 from services.bottleneck import detect_bottlenecks, get_bottleneck_timeline
@@ -12,11 +17,38 @@ from services.propagation import get_network, get_propagation
 from services.simulator import run_simulation
 from services.recommendations import get_recommendations
 
-app = FastAPI(title="CareCast AI", version="1.0.0")
+load_dotenv()
+
+MONGO_URI = os.getenv("MONGO_URI", "")
+MONGO_DB  = os.getenv("MONGO_DB", "healthcare")
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "*")
+
+# ── MongoDB client (shared across requests) ───────────────────────────────────
+
+mongo_client: AsyncIOMotorClient = None  # type: ignore[assignment]
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global mongo_client
+    if MONGO_URI:
+        mongo_client = AsyncIOMotorClient(MONGO_URI)
+    yield
+    if mongo_client:
+        mongo_client.close()
+
+def get_collection():
+    if not mongo_client:
+        raise HTTPException(status_code=503, detail="Database not configured")
+    return mongo_client[MONGO_DB]["emergencies"]
+
+
+# ── App ───────────────────────────────────────────────────────────────────────
+
+app = FastAPI(title="CareCast AI", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[FRONTEND_ORIGIN, "http://localhost:5173", "http://localhost:4173"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -32,6 +64,24 @@ class SimulateRequest(BaseModel):
     staff_change: float = 0
     scheduled_procedures_change: float = 0
     preset: Optional[str] = None
+
+
+class EmergencyReportIn(BaseModel):
+    caseId: str
+    patientId: str
+    incidentType: str
+    patientName: str
+    patientAge: int = 0
+    contactNumber: str = ""
+    location: str
+    severity: str          # CRITICAL | HIGH | MODERATE
+    description: str = ""
+    lifecycle: str = "CREATED"
+    reportedAt: str
+
+
+class LifecycleUpdate(BaseModel):
+    lifecycle: str
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -50,10 +100,9 @@ def dashboard():
     bottlenecks = detect_bottlenecks()
     recs = get_recommendations()
     peak = max(pt["forecast"] for pt in forecast_pts)
-
     return {
         "hospital": {
-            "name": "Salem Central Medical Center",
+            "name": "Healthcare Support",
             "capacity_score": 78,
             "current_utilization": state["er_utilization"],
             "predicted_peak": round(peak, 1),
@@ -77,10 +126,9 @@ def resources():
     forecast_pts = generate_forecast(6)
     peak = max(pt["forecast"] for pt in forecast_pts)
     items = _build_resources(state)
-    underutilized = [r for r in items if r["utilization"] < 55]
     return {
         "resources": items,
-        "underutilized": underutilized,
+        "underutilized": [r for r in items if r["utilization"] < 55],
         "hospital_peak_forecast": round(peak, 1),
     }
 
@@ -127,8 +175,7 @@ def bottlenecks():
 def dependencies(node_id: str = None):
     network = get_network()
     if node_id:
-        propagation = get_propagation(node_id)
-        return {**network, "propagation": propagation}
+        return {**network, "propagation": get_propagation(node_id)}
     return network
 
 
@@ -136,7 +183,7 @@ def dependencies(node_id: str = None):
 
 @app.post("/api/simulate")
 def simulate(req: SimulateRequest):
-    params = {
+    result = run_simulation({
         "surge": req.patient_surge,
         "bed_capacity_change": req.bed_capacity_change,
         "ct_capacity_change": req.ct_capacity_change,
@@ -144,8 +191,7 @@ def simulate(req: SimulateRequest):
         "staff_change": req.staff_change,
         "procedures_change": req.scheduled_procedures_change,
         "preset": req.preset,
-    }
-    result = run_simulation(params)
+    })
     return {
         "risk": result["risk_level"],
         "hospital_score": max(0, round(100 - result["risk_score"] * 0.4)),
@@ -166,6 +212,43 @@ def simulate(req: SimulateRequest):
 @app.get("/api/recommendations")
 def recommendations():
     return {"recommendations": get_recommendations()}
+
+
+# ── POST /api/emergencies — create ───────────────────────────────────────────
+
+@app.post("/api/emergencies", status_code=201)
+async def create_emergency(body: EmergencyReportIn):
+    col = get_collection()
+    doc = body.model_dump()
+    await col.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+# ── GET /api/emergencies — list ───────────────────────────────────────────────
+
+@app.get("/api/emergencies")
+async def list_emergencies(patient_id: str = None):
+    col = get_collection()
+    filt: dict = {}
+    if patient_id:
+        filt["patientId"] = patient_id
+    cursor = col.find(filt, {"_id": 0}).sort("reportedAt", -1).limit(100)
+    return {"emergencies": await cursor.to_list(length=100)}
+
+
+# ── PATCH /api/emergencies/{case_id}/lifecycle — update ──────────────────────
+
+@app.patch("/api/emergencies/{case_id}/lifecycle")
+async def update_lifecycle(case_id: str, body: LifecycleUpdate):
+    col = get_collection()
+    result = await col.update_one(
+        {"caseId": case_id},
+        {"$set": {"lifecycle": body.lifecycle}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return {"caseId": case_id, "lifecycle": body.lifecycle}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
