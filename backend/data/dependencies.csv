@@ -1,0 +1,11 @@
+source,target,dependency_strength
+Patient Arrival,Emergency,1.0
+Emergency,Emergency Beds,0.91
+Emergency,CT Scanner,0.72
+Emergency,Laboratory,0.8
+CT Scanner,Diagnosis,0.75
+Laboratory,Diagnosis,0.7
+Diagnosis,General Ward,0.65
+General Ward,ICU Beds,0.7
+Operating Rooms,ICU Beds,0.8
+ICU Beds,Discharge,0.55
