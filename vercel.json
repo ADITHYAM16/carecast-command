@@ -1,9 +1,14 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "dist/client",
+  "outputDirectory": ".output/public",
   "framework": null,
+  "installCommand": "npm install",
+  "functions": {
+    "api/server.js": {
+      "includeFiles": ".output/server/**"
+    }
+  },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/server" },
     { "source": "/(.*)", "destination": "/api/server" }
   ]
 }
