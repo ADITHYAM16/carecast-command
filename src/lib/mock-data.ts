@@ -20,7 +20,7 @@ export type ForecastPoint = {
 };
 
 export const hospital = {
-  name: "Salem Central Medical Center",
+  name: "Healthcare Support",
   capacityScore: 78,
   currentUtilization: 78,
   predictedPeak: 94,
@@ -93,6 +93,12 @@ export const simulatorDefaults = { surge: 30, emergency: 72, beds: 76, ct: 68, m
 export type EmergencySeverity = "CRITICAL" | "HIGH" | "MODERATE";
 export type ReadinessStatus = "READY" | "LIMITED" | "CRITICAL";
 export type AlertLifecycleStep = "CREATED" | "SENT" | "DELIVERED" | "ACKNOWLEDGED" | "PREPARING" | "READY" | "PATIENT ARRIVED" | "RESOLVED";
+
+export const patientLifecycleStages: { key: AlertLifecycleStep; label: string; desc: string }[] = [
+  { key: "CREATED", label: "Reported", desc: "Request submitted" },
+  { key: "PREPARING", label: "Preparing", desc: "Hospital preparing" },
+  { key: "READY", label: "Ready", desc: "Resources ready" },
+];
 
 export type AlertTeamRole = {
   id: string;
@@ -235,14 +241,9 @@ export const initialEmergencyCases: EmergencyCase[] = [
 ];
 
 export const emergencyLifecycleStages: { key: AlertLifecycleStep; label: string; desc: string }[] = [
-  { key: "CREATED", label: "Incident Reported", desc: "EMS telemetry logged" },
-  { key: "SENT", label: "Alert Sent", desc: "Routing via AI engine" },
-  { key: "DELIVERED", label: "Delivered", desc: "Pushed to team pagers" },
-  { key: "ACKNOWLEDGED", label: "Acknowledged", desc: "Physicians confirmed" },
-  { key: "PREPARING", label: "Teams Preparing", desc: "Trauma bays & OR pre-staged" },
-  { key: "READY", label: "Resources Ready", desc: "Bays clear & equipment locked" },
-  { key: "PATIENT ARRIVED", label: "Patient Arrived", desc: "Ambulance docked at bay" },
-  { key: "RESOLVED", label: "Resolved", desc: "Admitted & care transitioned" },
+  { key: "CREATED", label: "Reported", desc: "Request submitted" },
+  { key: "PREPARING", label: "Preparing", desc: "Hospital preparing" },
+  { key: "READY", label: "Ready", desc: "Resources ready" },
 ];
 
 export const emergencyPropagationImpact = [

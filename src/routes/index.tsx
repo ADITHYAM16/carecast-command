@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { IntroSplash } from "@/components/intro-splash";
+import { fetchEmergencies, reportToEmergencyCase } from "@/lib/mongodb";
 import {
-  Activity, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, BedDouble, Bell, BrainCircuit, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Clock3, Cpu, Download, FileBarChart, FileText, Gauge, GitBranch, HeartPulse, LayoutDashboard, Lightbulb, Menu, Microscope, Moon, Network, Play, Radio, RefreshCw, ScanLine, Search, Settings2, ShieldCheck, Siren, Sparkles, Stethoscope, Sun, TableProperties, TimerReset, TrendingDown, TrendingUp, TriangleAlert, UserRound, UsersRound, Workflow, X,
+  Activity, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, BedDouble, Bell, BrainCircuit, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Clock3, Cpu, Download, FileBarChart, FileText, Gauge, GitBranch, HeartPulse, LayoutDashboard, Lightbulb, Loader2, Menu, Microscope, Moon, Navigation, Network, Play, Radio, RefreshCw, ScanLine, Search, Settings2, ShieldCheck, Siren, Sparkles, Stethoscope, Sun, TableProperties, TimerReset, TrendingDown, TrendingUp, TriangleAlert, UserRound, UsersRound, Workflow, X,
 } from "lucide-react";
 import {
   Area, AreaChart, CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -67,9 +68,47 @@ function CareCastApp() {
   const [scenario, setScenario] = useState(simulatorDefaults);
   const [simulating, setSimulating] = useState(false);
   const [simulationRun, setSimulationRun] = useState(false);
+  const [patientCases, setPatientCases] = useState<import("@/lib/mock-data").EmergencyCase[]>([]);
   const { theme, toggleTheme } = useTheme();
+  const [locating, setLocating] = useState(false);
+  const [locLabel, setLocLabel] = useState("");
+
+  const handleUseLocation = () => {
+    if (!navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
+          const data = await res.json() as { display_name?: string };
+          setLocLabel(data.display_name ?? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        } catch {
+          setLocLabel(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        }
+        setLocating(false);
+      },
+      () => setLocating(false),
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
   const hideSplash = useCallback(() => setSplash(false), []);
   const clock = useClock();
+
+  // Poll patient-reported emergencies every 10 seconds
+  const refreshPatientCases = useCallback(async () => {
+    try {
+      const reports = await fetchEmergencies();
+      setPatientCases(reports.map(reportToEmergencyCase));
+    } catch { /* offline — localStorage fallback already handled in fetchEmergencies */ }
+  }, []);
+
+  useEffect(() => {
+    refreshPatientCases();
+    const id = setInterval(refreshPatientCases, 10_000);
+    return () => clearInterval(id);
+  }, [refreshPatientCases]);
 
   const runSimulation = () => {
     setSimulating(true);
@@ -103,13 +142,14 @@ function CareCastApp() {
         {/* Desktop sidebar */}
         <Sidebar activeView={activeView} onSelect={setActiveView} open={sidebarOpen} onToggle={() => setSidebarOpen((v) => !v)} />
         <div className="min-w-0 flex-1">
-          <Topbar sidebarOpen={sidebarOpen} onMenu={() => setMobileOpen((v) => !v)} theme={theme} onToggleTheme={toggleTheme} clock={clock} />
+          <Topbar sidebarOpen={sidebarOpen} onMenu={() => setMobileOpen((v) => !v)} theme={theme} onToggleTheme={toggleTheme} clock={clock} onUseLocation={handleUseLocation} locating={locating} locLabel={locLabel} />
           <main className="relative min-h-[calc(100vh-68px)] px-4 py-5 sm:px-6 lg:px-8 overflow-hidden">
             <HealthcareBackground />
             <div className="relative z-10 mx-auto max-w-[1560px]">
               {activeView === "Command Center" && <CommandCenter onView={(view) => setActiveView(view)} />}
               {activeView === "Emergency Response" && (
                 <EmergencyResponseView
+                  patientReportedCases={patientCases}
                   onOpenSimulator={(surge) => {
                     setScenario((prev) => ({ ...prev, surge: surge ?? 80, emergency: 95, beds: 96, ct: 108 }));
                     setActiveView("Scenario Simulator");
@@ -146,7 +186,6 @@ function SidebarContent({ activeView, onSelect, open, onToggle, isMobile = false
             <img src="/care.png" alt="" className="size-8 shrink-0 object-contain" draggable={false} />
             <div className="min-w-0">
               <div className="text-[14px] font-extrabold tracking-[0.18em] text-foreground">CARECAST <span className="text-command-cyan">AI</span></div>
-              <div className="mt-0.5 whitespace-nowrap text-[9px] font-medium tracking-[0.2em] text-muted-foreground">PREDICT • PREPARE • PREVENT</div>
             </div>
             {isMobile && (
               <button onClick={onToggle} className="ml-auto shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground">
@@ -191,6 +230,7 @@ function SidebarContent({ activeView, onSelect, open, onToggle, isMobile = false
       <div className={cn("mt-auto border-t border-sidebar-border p-3", !open && "px-2")}>
         {open && <div className="mb-4 rounded-lg border border-command-green/20 bg-command-green/5 p-3"><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-command-green"><span className="status-pulse size-1.5 rounded-full bg-command-green" />System status</div><div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground"><ShieldCheck size={14} className="text-command-green" /> AI engine operational</div><div className="mt-2 flex justify-between text-[9px] text-muted-foreground"><span>UPTIME</span><span className="mono-data text-foreground">99.98%</span></div></div>}
         <button className={cn("flex w-full items-center rounded-lg text-left hover:bg-sidebar-accent", open ? "gap-3 p-2" : "justify-center p-2")} title="Admin profile"><div className="grid size-8 shrink-0 place-items-center rounded-full border border-command-cyan/30 bg-command-cyan/10 text-xs font-bold text-command-cyan">MA</div>{open && <div className="min-w-0"><div className="truncate text-[11px] font-semibold text-foreground">M.ADITHYA</div><div className="text-[10px] text-muted-foreground">Admin</div></div>}</button>
+        <a href="/patient" title="Patient Portal" className={cn("mt-2 flex w-full items-center rounded-lg border border-command-border/50 text-muted-foreground hover:border-command-cyan/40 hover:text-command-cyan", open ? "gap-2 px-3 py-2 text-[10px]" : "justify-center p-2")}><UserRound size={13} />{open && "Patient Portal"}</a>
         {!isMobile && <button onClick={onToggle} className="mt-3 hidden w-full items-center justify-center rounded-md border border-sidebar-border p-2 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground lg:flex" title={open ? "Collapse navigation" : "Expand navigation"}>{open ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}</button>}
       </div>
     </div>
@@ -206,17 +246,17 @@ function Sidebar({ activeView, onSelect, open, onToggle }: { activeView: View; o
 }
 
 
-function Topbar({ onMenu, theme, onToggleTheme, clock }: { sidebarOpen: boolean; onMenu: () => void; theme: string; onToggleTheme: () => void; clock: Date }) {
+function Topbar({ onMenu, theme, onToggleTheme, clock, onUseLocation, locating, locLabel }: { sidebarOpen: boolean; onMenu: () => void; theme: string; onToggleTheme: () => void; clock: Date; onUseLocation: () => void; locating: boolean; locLabel: string }) {
   const timeStr = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
   const dateStr = clock.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }).toUpperCase();
   const tzOffset = (() => { const o = -clock.getTimezoneOffset(); const h = String(Math.floor(Math.abs(o) / 60)).padStart(2, "0"); const m = String(Math.abs(o) % 60).padStart(2, "0"); return `UTC ${o >= 0 ? "+" : "-"}${h}:${m}`; })();
   return (
-    <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-command-border bg-command/95 px-3 backdrop-blur-xl sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b-2 border-command-green bg-command/95 px-3 backdrop-blur-xl sm:px-6 lg:px-8 shadow-[0_4px_20px_color-mix(in_oklch,var(--command-green)_15%,transparent)]">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground lg:hidden" onClick={onMenu}><Menu size={18} /></Button>
         <div className="hidden size-8 shrink-0 items-center justify-center rounded-lg bg-command-cyan/10 text-command-cyan sm:flex"><HeartPulse size={18} /></div>
         <div className="min-w-0">
-          <div className="truncate text-[12px] font-semibold text-foreground sm:text-[13px]">Salem Central Medical Center</div>
+          <div className="truncate text-[12px] font-semibold text-foreground sm:text-[13px]">Healthcare Support</div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
             <span className="status-pulse size-1.5 shrink-0 rounded-full bg-command-green" />
             <span className="hidden sm:inline">System operational</span>
@@ -225,18 +265,21 @@ function Topbar({ onMenu, theme, onToggleTheme, clock }: { sidebarOpen: boolean;
         </div>
       </div>
       <div className="flex items-center gap-1.5 sm:gap-4">
-        <div className="hidden items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground lg:flex">
-          <BrainCircuit size={15} className="text-command-cyan" /> Forecast engine <span className="font-semibold text-command-cyan">active</span>
-        </div>
         <div className="text-right">
           <div className="mono-data text-[11px] font-semibold text-foreground">{timeStr}</div>
           <div className="mt-0.5 hidden text-[9px] text-muted-foreground sm:block">{dateStr} · {tzOffset}</div>
         </div>
+        <button
+          onClick={onUseLocation}
+          disabled={locating}
+          title={locLabel || "Use my current location"}
+          className="flex items-center gap-1.5 rounded-lg border border-command-cyan/40 bg-command-cyan/10 px-3 py-1.5 text-[10px] font-semibold text-command-cyan transition-all hover:bg-command-cyan/20 disabled:opacity-50"
+        >
+          {locating ? <Loader2 size={13} className="animate-spin" /> : <Navigation size={13} />}
+          <span className="hidden sm:inline max-w-[160px] truncate">{locating ? "Locating…" : locLabel || "Use Location"}</span>
+        </button>
         <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={onToggleTheme} title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>
           {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
-        </Button>
-        <Button variant="ghost" size="icon" className="relative shrink-0 text-muted-foreground hover:text-foreground">
-          <Bell size={17} /><span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-command-red" />
         </Button>
       </div>
     </header>
@@ -299,13 +342,13 @@ function ResourceIcon({ icon }: { icon: string }) { const Icon = icon === "bed" 
 
 function PressureMap() { return <Panel title="Department pressure" meta="Click a department to inspect its risk profile" action={<div className="flex items-center gap-2 text-[9px] text-muted-foreground"><span className="size-1.5 rounded-full bg-command-red" /> Critical</div>}><div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4">{departments.map((department) => <button key={department.name} className="rounded-lg border border-command-border/70 bg-command/35 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-command-cyan/40"><div className="flex items-start justify-between gap-2"><span className="text-[10px] font-medium text-foreground">{department.name}</span><span className={cn("size-1.5 shrink-0 rounded-full", department.risk === "CRITICAL" ? "bg-command-red" : department.risk === "HIGH" ? "bg-command-amber" : department.risk === "LOW" ? "bg-command-green" : "bg-command-cyan")} /></div><div className="mt-3 flex items-baseline justify-between"><span className="mono-data text-lg font-semibold text-foreground">{department.utilization}%</span><span className="text-[9px] text-muted-foreground">{department.trend}</span></div><div className="mt-2 h-1 overflow-hidden rounded-full bg-command-border"><div className={cn("h-full rounded-full", department.risk === "CRITICAL" ? "bg-command-red" : department.risk === "HIGH" ? "bg-command-amber" : "bg-command-cyan")} style={{ width: `${department.utilization}%` }} /></div></button>)}</div></Panel>; }
 
-function InsightCard({ onSimulator }: { onSimulator: () => void }) { return <div className="mt-5 overflow-hidden rounded-xl border border-command-cyan/25 bg-command-cyan/[0.055] p-5 shadow-[0_0_40px_oklch(0.77_0.15_192/5%)] sm:p-6"><div className="flex flex-col justify-between gap-5 md:flex-row"><div className="max-w-3xl"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.17em] text-command-cyan"><Sparkles size={14} /> AI operational insight</div><p className="mt-3 text-[15px] leading-7 text-foreground">Emergency arrivals are increasing <span className="font-semibold text-command-cyan">18% faster</span> than the normal hourly pattern. Bed utilization is expected to reach <span className="font-semibold text-command-red">95% within approximately 3 hours.</span></p><div className="mt-5 grid gap-4 sm:grid-cols-3"><Metric label="Primary bottleneck" value="Emergency beds" tone="red" /><Metric label="Predicted time" value="2h 47m" tone="amber" /><Metric label="Priority" value="Preventive" tone="cyan" /></div></div><div className="flex shrink-0 flex-col justify-end gap-2 sm:flex-row md:flex-col"><Button size="sm" variant="outline" className="border-command-border text-[10px]" onClick={() => {}}> <CircleHelp size={13} /> View explanation</Button><Button size="sm" className="bg-command-cyan text-primary-foreground hover:bg-command-cyan/90" onClick={onSimulator}><Workflow size={13} /> Open simulator</Button></div></div></div>; }
+function InsightCard({ onSimulator }: { onSimulator: () => void }) { return <div className="mt-5 overflow-hidden rounded-xl border border-command-cyan/25 bg-command-cyan/[0.055] p-5 shadow-[0_0_40px_oklch(0.77_0.15_192/5%)] sm:p-6 transition-all duration-300 hover:-translate-y-1 hover:border-command-cyan/50 hover:shadow-[0_12px_40px_color-mix(in_oklch,var(--command-cyan)_15%,transparent)]"><div className="flex flex-col justify-between gap-5 md:flex-row"><div className="max-w-3xl"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.17em] text-command-cyan"><Sparkles size={14} /> AI operational insight</div><p className="mt-3 text-[15px] leading-7 text-foreground">Emergency arrivals are increasing <span className="font-semibold text-command-cyan">18% faster</span> than the normal hourly pattern. Bed utilization is expected to reach <span className="font-semibold text-command-red">95% within approximately 3 hours.</span></p><div className="mt-5 grid gap-4 sm:grid-cols-3"><Metric label="Primary bottleneck" value="Emergency beds" tone="red" /><Metric label="Predicted time" value="2h 47m" tone="amber" /><Metric label="Priority" value="Preventive" tone="cyan" /></div></div><div className="flex shrink-0 flex-col justify-end gap-2 sm:flex-row md:flex-col"><Button size="sm" variant="outline" className="border-command-border text-[10px]" onClick={() => {}}> <CircleHelp size={13} /> View explanation</Button><Button size="sm" className="bg-command-cyan text-primary-foreground hover:bg-command-cyan/90" onClick={onSimulator}><Workflow size={13} /> Open simulator</Button></div></div></div>; }
 
 function ForecastPage() { return <div className="pb-10"><PageHeader eyebrow="Predict / Capacity model" title="AI Capacity Forecast" subtitle="Predict future demand and resource utilization across the hospital" action={<div className="flex gap-2"><Button variant="outline" size="sm" className="border-command-border text-[10px]"><Settings2 size={13} /> Filters</Button><Button size="sm" className="bg-command-cyan text-primary-foreground text-[10px]"><Download size={13} /> Export</Button></div>} /><div className="grid gap-5 lg:grid-cols-[1fr_290px]"><Panel title="Hospital utilization forecast" meta="Historical utilization, AI forecast, and confidence interval" className="overflow-hidden"><ForecastChart /></Panel><ForecastFactors /></div><div className="mt-5 grid gap-5 md:grid-cols-3"><StatCard icon={TrendingUp} label="Peak predicted demand" value="98%" detail="at +8 hours" tone="red" /><StatCard icon={Clock3} label="Peak time" value="14:00" detail="Thursday, Sep 10" tone="amber" /><StatCard icon={ShieldCheck} label="Model confidence" value="92.4%" detail="Based on 18 factors" tone="green" /></div></div>; }
 
 function ForecastFactors() { return <Panel title="Why this forecast?" meta="Signals weighted by the AI engine"><div className="space-y-4 p-4">{[["Recent patient arrivals", "High impact", 88], ["Historical hourly pattern", "Medium impact", 64], ["Scheduled procedures", "Medium impact", 58], ["Current occupancy", "High impact", 82], ["Day-of-week pattern", "Low impact", 34]].map(([label, impact, value]) => <div key={label as string}><div className="flex justify-between text-[10px]"><span className="text-foreground">{label as string}</span><span className="text-muted-foreground">{impact as string}</span></div><div className="mt-2 h-1 rounded-full bg-command-border"><div className="h-full rounded-full bg-command-cyan" style={{ width: `${value}%` }} /></div></div>)}</div></Panel>; }
 
-function StatCard({ icon: Icon, label, value, detail, tone }: { icon: typeof TrendingUp; label: string; value: string; detail: string; tone: "red" | "amber" | "green" }) { return <Panel className="flex items-center gap-4 p-4"><div className={cn("grid size-10 place-items-center rounded-lg", tone === "red" ? "bg-command-red/12 text-command-red" : tone === "amber" ? "bg-command-amber/12 text-command-amber" : "bg-command-green/12 text-command-green")}><Icon size={19} /></div><div><div className="text-[10px] text-muted-foreground">{label}</div><div className="mono-data mt-1 text-xl font-semibold text-foreground">{value}</div><div className="text-[9px] text-muted-foreground">{detail}</div></div></Panel>; }
+function StatCard({ icon: Icon, label, value, detail, tone }: { icon: typeof TrendingUp; label: string; value: string; detail: string; tone: "red" | "amber" | "green" }) { return <Panel className="flex items-center gap-4 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-command-cyan/40 hover:shadow-[0_10px_25px_rgba(0,0,0,0.15)]"><div className={cn("grid size-10 place-items-center rounded-lg transition-transform duration-300 group-hover:scale-110", tone === "red" ? "bg-command-red/12 text-command-red" : tone === "amber" ? "bg-command-amber/12 text-command-amber" : "bg-command-green/12 text-command-green")}><Icon size={19} /></div><div><div className="text-[10px] text-muted-foreground">{label}</div><div className="mono-data mt-1 text-xl font-semibold text-foreground">{value}</div><div className="text-[9px] text-muted-foreground">{detail}</div></div></Panel>; }
 
 function BottlenecksPage({ onNetwork }: { onNetwork: () => void }) { return <div className="pb-10"><PageHeader eyebrow="Predict / Risk queue" title="Predicted Bottlenecks" subtitle="Identify resource constraints before congestion occurs." action={<Button size="sm" className="bg-command-cyan text-primary-foreground text-[10px]" onClick={onNetwork}><Network size={13} /> Open impact network</Button>} /><div className="mb-5 grid gap-4 sm:grid-cols-3"><StatCard icon={TriangleAlert} label="Critical bottlenecks" value="3 detected" detail="Across 2 departments" tone="red" /><StatCard icon={TimerReset} label="Next overload" value="2h 47m" detail="Emergency bed capacity" tone="amber" /><StatCard icon={ArrowDownRight} label="Risk prevented" value="18%" detail="With current actions" tone="green" /></div><Panel title="Bottleneck intelligence" meta="Sorted by time to overload"><div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left"><thead><tr className="border-b border-command-border text-[9px] uppercase tracking-[0.13em] text-muted-foreground">{["Resource", "Department", "Current", "Predicted peak", "Capacity", "Time to overload", "Risk", "Impact"].map((heading) => <th key={heading} className="px-4 py-3 font-medium">{heading}</th>)}</tr></thead><tbody>{bottlenecks.map((item) => <tr key={item.resource} className="border-b border-command-border/60 text-[11px] hover:bg-command-cyan/5"><td className="px-4 py-4 font-semibold text-foreground">{item.resource}</td><td className="px-4 py-4 text-muted-foreground">{item.department}</td><td className="mono-data px-4 py-4 text-foreground">{item.current}%</td><td className="mono-data px-4 py-4 text-command-red">{item.peak}%</td><td className="px-4 py-4 text-muted-foreground">{item.capacity}</td><td className="mono-data px-4 py-4 text-command-amber">{item.time}</td><td className="px-4 py-4"><RiskBadge risk={item.risk} /></td><td className="px-4 py-4 text-muted-foreground">{item.impact}</td></tr>)}</tbody></table></div></Panel><Panel className="mt-5" title="Bottleneck timeline" meta="When resources cross capacity thresholds"><div className="p-5"><div className="flex justify-between text-[9px] text-muted-foreground"><span>NOW</span><span>+2H</span><span>+4H</span><span>+6H</span><span>+12H</span></div><div className="relative mt-7 space-y-6">{bottlenecks.map((item, index) => <div key={item.resource} className="grid grid-cols-[125px_1fr] items-center gap-4"><div className="truncate text-[10px] font-medium text-foreground">{item.resource}</div><div className="relative h-7"><div className="absolute top-3 h-px w-full bg-command-border" /><div className="absolute top-1 h-5 rounded-r-full bg-command-red/25" style={{ left: `${index === 0 ? 0 : index === 1 ? 15 : 28}%`, width: `${index === 0 ? 25 : index === 1 ? 35 : 48}%` }} /><div className="absolute top-1 size-5 rounded-full border-2 border-command-red bg-command/90 shadow-[0_0_12px_var(--color-command-red)]" style={{ left: `${index === 0 ? 25 : index === 1 ? 50 : 76}%` }} /><span className="absolute top-7 -translate-x-1/2 text-[9px] font-mono text-command-red" style={{ left: `${index === 0 ? 25 : index === 1 ? 50 : 76}%` }}>{item.time}</span></div></div>)}</div></div></Panel></div>; }
 

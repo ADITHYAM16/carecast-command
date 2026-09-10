@@ -121,9 +121,6 @@ function EmergencyResponsePage() {
                 <div className="text-[14px] font-extrabold tracking-[0.18em] text-foreground">
                   CARECAST <span className="text-command-cyan">AI</span>
                 </div>
-                <div className="mt-0.5 whitespace-nowrap text-[9px] font-medium tracking-[0.2em] text-muted-foreground">
-                  PREDICT • PREPARE • PREVENT
-                </div>
               </div>
             )}
           </div>
@@ -217,7 +214,7 @@ function EmergencyResponsePage() {
         {/* Main Content Area */}
         <div className="min-w-0 flex-1">
           {/* Topbar */}
-          <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-command-border bg-command/95 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+          <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b-2 border-command-green bg-command/95 px-4 backdrop-blur-xl sm:px-6 lg:px-8 shadow-[0_4px_20px_color-mix(in_oklch,var(--command-green)_15%,transparent)]">
             <div className="flex min-w-0 items-center gap-3">
               <Button
                 variant="ghost"
@@ -232,7 +229,7 @@ function EmergencyResponsePage() {
               </div>
               <div className="min-w-0">
                 <div className="truncate text-[12px] font-semibold text-foreground sm:text-[13px]">
-                  Hospital Management — Emergency Response Network
+                  Healthcare Support — Emergency Response Network
                 </div>
                 <div className="mt-0.5 flex items-center gap-2 text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
                   <span className="status-pulse size-1.5 rounded-full bg-command-red" />
@@ -244,10 +241,6 @@ function EmergencyResponsePage() {
             </div>
 
             <div className="flex items-center gap-3 sm:gap-6">
-              <div className="hidden items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground md:flex">
-                <BrainCircuit size={15} className="text-command-cyan" /> Emergency routing{" "}
-                <span className="font-semibold text-command-red">ACTIVE</span>
-              </div>
               <div className="hidden text-right sm:block">
                 <div className="mono-data text-[11px] text-foreground">
                   THU, SEP 10 · 06:49
@@ -267,15 +260,6 @@ function EmergencyResponsePage() {
                 }
               >
                 {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative text-muted-foreground hover:text-foreground"
-              >
-                <Bell size={17} />
-                <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-command-red animate-ping" />
               </Button>
 
               <div className="grid size-8 place-items-center rounded-full border border-command-cyan/30 bg-command-cyan/10 text-[10px] font-bold text-command-cyan">

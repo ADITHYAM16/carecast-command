@@ -364,7 +364,7 @@ TOP HEADER
 
 Hospital:
 
-Salem Central Medical Center
+Healthcare Support
 
 Status:
 

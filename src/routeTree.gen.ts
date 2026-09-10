@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EmergencyResponseRouteImport } from './routes/emergency-response'
+import { Route as PatientRouteImport } from './routes/patient'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const EmergencyResponseRoute = EmergencyResponseRouteImport.update({
   path: '/emergency-response',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PatientRoute = PatientRouteImport.update({
+  id: '/patient',
+  path: '/patient',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/emergency-response': typeof EmergencyResponseRoute
+  '/patient': typeof PatientRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/emergency-response': typeof EmergencyResponseRoute
+  '/patient': typeof PatientRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/emergency-response': typeof EmergencyResponseRoute
+  '/patient': typeof PatientRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/emergency-response'
+  fullPaths: '/' | '/emergency-response' | '/patient'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/emergency-response'
-  id: '__root__' | '/' | '/emergency-response'
+  to: '/' | '/emergency-response' | '/patient'
+  id: '__root__' | '/' | '/emergency-response' | '/patient'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   EmergencyResponseRoute: typeof EmergencyResponseRoute
+  PatientRoute: typeof PatientRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmergencyResponseRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/patient': {
+      id: '/patient'
+      path: '/patient'
+      fullPath: '/patient'
+      preLoaderRoute: typeof PatientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   EmergencyResponseRoute: EmergencyResponseRoute,
+  PatientRoute: PatientRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

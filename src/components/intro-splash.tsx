@@ -153,16 +153,6 @@ export function IntroSplash({ onDone }: { onDone: () => void }) {
       </div>
 
       {/* Bottom credit */}
-      <div style={{
-        position: "absolute",
-        bottom: "24px",
-        fontFamily: "'Inter', system-ui, sans-serif",
-        fontSize: "11px",
-        color: "#cbd5e1",
-        letterSpacing: "0.08em",
-      }}>
-        PREDICT · PREPARE · PREVENT
-      </div>
 
       <style>{`
         @keyframes splashDot {

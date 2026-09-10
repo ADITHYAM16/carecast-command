@@ -1,16 +1,16 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   AlertTriangle,
   Ambulance,
   ArrowRight,
   BedDouble,
-  Bell,
   CheckCircle2,
   ChevronRight,
   Clock,
   Cpu,
   HeartPulse,
   Layers,
+  Map,
   MapPin,
   Microscope,
   Plus,
@@ -20,9 +20,7 @@ import {
   ShieldAlert,
   Siren,
   Sparkles,
-  Stethoscope,
   Timer,
-  UserCheck,
   Users,
   Workflow,
   X,
@@ -38,6 +36,7 @@ import {
 } from "recharts";
 
 import { Button } from "@/components/ui/button";
+import { updateLifecycle } from "@/lib/mongodb";
 import {
   EmergencyCase,
   EmergencySeverity,
@@ -52,20 +51,40 @@ import { cn } from "@/lib/utils";
 interface EmergencyResponseViewProps {
   onOpenSimulator?: (surge?: number) => void;
   onOpenNetwork?: () => void;
+  patientReportedCases?: EmergencyCase[];
 }
 
 export function EmergencyResponseView({
   onOpenSimulator,
   onOpenNetwork,
+  patientReportedCases = [],
 }: EmergencyResponseViewProps) {
-  const [cases, setCases] = useState<EmergencyCase[]>(initialEmergencyCases);
+  const [showAllCases, setShowAllCases] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
+
+  const [cases, setCases] = useState<EmergencyCase[]>(() => {
+    const seen = new Set<string>();
+    return [...patientReportedCases, ...initialEmergencyCases].filter((c) => {
+      if (seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
+  });
+
+  // Merge new patient-reported cases without overwriting local lifecycle changes
+  useEffect(() => {
+    setCases((prev) => {
+      const existingIds = new Set(prev.map((c) => c.id));
+      const newOnes = patientReportedCases.filter((c) => !existingIds.has(c.id));
+      return newOnes.length > 0 ? [...newOnes, ...prev] : prev;
+    });
+  }, [patientReportedCases]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>(
     initialEmergencyCases[0].id
   );
   const [intakeModalOpen, setIntakeModalOpen] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(12 * 60);
   const [escalationTimer, setEscalationTimer] = useState(48);
-  const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [auditLog, setAuditLog] = useState<string[]>([
     "06:42:01 — Incident telemetry logged via Regional EMS Dispatch",
     "06:42:15 — Predictive engine routed notifications to 5 clinical response units",
@@ -125,41 +144,8 @@ export function EmergencyResponseView({
       `${now} — Status transitioned to [${step}] for ${activeCase.id}`,
       ...prev,
     ]);
-  };
-
-  // Handle Doctor Acknowledgment
-  const handleAcknowledgeAlert = () => {
-    setCases((prev) =>
-      prev.map((c) => {
-        if (c.id !== activeCase.id) return c;
-        const updatedRoles = c.roles.map((r) =>
-          r.role === "Emergency Doctor"
-            ? {
-                ...r,
-                status: "ACKNOWLEDGED" as const,
-                ackTime: new Date().toLocaleTimeString(),
-              }
-            : r
-        );
-        const updatedEscalation = c.escalation.map((e) =>
-          e.tier === 1 ? { ...e, status: "ACKNOWLEDGED" as const } : e
-        );
-        return {
-          ...c,
-          lifecycle:
-            c.lifecycle === "DELIVERED" || c.lifecycle === "SENT"
-              ? "ACKNOWLEDGED"
-              : c.lifecycle,
-          roles: updatedRoles,
-          escalation: updatedEscalation,
-        };
-      })
-    );
-    setAuditLog((prev) => [
-      `${new Date().toLocaleTimeString()} — Attending Emergency Physician ACKNOWLEDGED alert via Mobile Console`,
-      ...prev,
-    ]);
-    setShowDoctorModal(false);
+    // Sync to localStorage so patient portal reflects the update
+    updateLifecycle(activeCase.id, step);
   };
 
   // Create new emergency incident
@@ -305,22 +291,9 @@ export function EmergencyResponseView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            onClick={() => setShowDoctorModal(true)}
-            variant="outline"
-            size="sm"
-            className="border-command-cyan/30 bg-command-cyan/10 text-[11px] font-semibold text-command-cyan hover:bg-command-cyan/20"
-          >
-            <Stethoscope size={14} className="mr-1.5" /> Doctor Notification Console
-          </Button>
-
-          <Button
-            onClick={() => setIntakeModalOpen(true)}
-            size="sm"
-            className="bg-command-red text-white shadow-[0_0_20px_var(--color-command-red)] hover:bg-command-red/90 text-[11px] font-semibold"
-          >
-            <Plus size={14} className="mr-1.5" /> Report New Emergency
-          </Button>
+          <span className="flex items-center gap-1.5 rounded-full border border-command-green/30 bg-command-green/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] text-command-green">
+            <span className="status-pulse size-1.5 rounded-full bg-command-green" /> Live · Auto-refresh 10s
+          </span>
         </div>
       </div>
 
@@ -329,7 +302,7 @@ export function EmergencyResponseView({
         <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground mr-1">
           Active Cases:
         </span>
-        {cases.map((c) => {
+        {(showAllCases ? cases : cases.slice(0, 3)).map((c) => {
           const isActive = c.id === selectedCaseId;
           return (
             <button
@@ -378,6 +351,14 @@ export function EmergencyResponseView({
             </button>
           );
         })}
+        {cases.length > 3 && (
+          <button
+            onClick={() => setShowAllCases((v) => !v)}
+            className="shrink-0 rounded-lg border border-command-cyan/30 bg-command-cyan/10 px-3 py-2 text-[10px] font-semibold text-command-cyan hover:bg-command-cyan/20"
+          >
+            {showAllCases ? "Show less" : `See more (${cases.length - 3})`}
+          </button>
+        )}
       </div>
 
       {/* Hero: Intelligent Alert Card */}
@@ -447,11 +428,11 @@ export function EmergencyResponseView({
 
             <div className="flex flex-wrap gap-2">
               <Button
-                onClick={() => setShowDoctorModal(true)}
+                onClick={() => setMapOpen(true)}
                 size="sm"
-                className="bg-command-red text-white hover:bg-command-red/90 text-[11px] font-bold shadow-md"
+                className="bg-command-cyan text-primary-foreground text-[10px] font-bold"
               >
-                <UserCheck size={13} className="mr-1" /> Acknowledge Alert
+                <Map size={13} className="mr-1" /> View on Map
               </Button>
               {onOpenSimulator && (
                 <Button
@@ -484,13 +465,7 @@ export function EmergencyResponseView({
             <span className="text-[9px] text-muted-foreground">Advance stage:</span>
             <div className="flex rounded-md border border-command-border bg-command/50 p-0.5">
               {(
-                [
-                  "ACKNOWLEDGED",
-                  "PREPARING",
-                  "READY",
-                  "PATIENT ARRIVED",
-                  "RESOLVED",
-                ] as AlertLifecycleStep[]
+                ["CREATED", "PREPARING", "READY"] as AlertLifecycleStep[]
               ).map((step) => (
                 <button
                   key={step}
@@ -502,23 +477,25 @@ export function EmergencyResponseView({
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  {step.split(" ")[0]}
+                  {step === "CREATED" ? "REPORTED" : step}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Visual 8-Step Timeline */}
+        {/* Visual 3-Step Timeline */}
         <div className="overflow-x-auto pb-2 pt-2">
-          <div className="flex min-w-[760px] items-center justify-between relative">
+          <div className="flex items-center justify-between relative max-w-sm">
             <div className="absolute left-6 right-6 top-4 h-0.5 bg-command-border -z-0" />
             {emergencyLifecycleStages.map((stage, idx) => {
               const currentIdx = emergencyLifecycleStages.findIndex(
                 (s) => s.key === activeCase.lifecycle
               );
-              const isPast = idx <= currentIdx;
-              const isCurrent = idx === currentIdx;
+              // Treat any non-READY, non-PREPARING lifecycle as CREATED (index 0)
+              const effectiveIdx = currentIdx === -1 ? 0 : currentIdx;
+              const isPast = idx <= effectiveIdx;
+              const isCurrent = idx === effectiveIdx;
 
               return (
                 <div
@@ -1038,6 +1015,16 @@ export function EmergencyResponseView({
         </div>
       </div>
 
+      {/* Ambulance Map Modal */}
+      {mapOpen && activeCase && (
+        <AmbulanceMapModal
+          location={activeCase.location}
+          incidentType={activeCase.incidentType}
+          etaMinutes={activeCase.etaMinutes}
+          onClose={() => setMapOpen(false)}
+        />
+      )}
+
       {/* Intake Modal / Dialog */}
       {intakeModalOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-md">
@@ -1178,76 +1165,194 @@ export function EmergencyResponseView({
         </div>
       )}
 
-      {/* Doctor Notification Pager Console / Modal */}
-      {showDoctorModal && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-2xl border-2 border-command-red/60 bg-command-raised p-6 shadow-[0_0_50px_oklch(0.67_0.2_27/25%)]">
-            <div className="flex items-center justify-between border-b border-command-border pb-3">
-              <div className="flex items-center gap-2 text-command-red font-bold text-[12px] uppercase tracking-wider">
-                <Bell size={16} className="animate-pulse" /> Clinical Alert Pager — Dr. Sarah Chen
-              </div>
-              <button
-                onClick={() => setShowDoctorModal(false)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X size={16} />
-              </button>
-            </div>
 
-            <div className="mt-4 space-y-3">
-              <div className="rounded-lg border border-command-red/30 bg-command-red/10 p-3">
-                <div className="flex items-center justify-between text-[10px] font-bold uppercase text-command-red">
-                  <span>Critical Trauma Alert</span>
-                  <span className="mono-data">ETA: {formatCountdown(countdownSeconds)}</span>
-                </div>
-                <div className="mt-2 text-[12px] font-bold text-foreground">
-                  {activeCase.patientCount} Patients Inbound · {activeCase.incidentType}
-                </div>
-                <div className="mt-1 text-[10px] text-muted-foreground">
-                  Location: {activeCase.location}
-                </div>
-              </div>
+    </div>
+  );
+}
 
-              <div className="space-y-1.5 rounded-lg border border-command-border bg-command/50 p-3 text-[10px]">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Assigned Role:</span>
-                  <span className="font-semibold text-foreground">
-                    Emergency Doctor (Trauma Attending)
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Target Bay:</span>
-                  <span className="font-semibold text-command-cyan">
-                    Resuscitation Bay 1 (Airway Prep)
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Notification Status:</span>
-                  <span className="font-semibold text-command-amber">
-                    PENDING ACKNOWLEDGMENT
-                  </span>
-                </div>
-              </div>
+// ── Ambulance Map Modal ──────────────────────────────────────────────────────
+function AmbulanceMapModal({
+  location,
+  incidentType,
+  etaMinutes,
+  onClose,
+}: {
+  location: string;
+  incidentType: string;
+  etaMinutes: number;
+  onClose: () => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animRef = useRef<number>(0);
+  const startRef = useRef<number | null>(null);
+  const durationMs = Math.min(etaMinutes * 2000, 30000);
 
-              <div className="pt-2 flex flex-col gap-2">
-                <Button
-                  onClick={handleAcknowledgeAlert}
-                  className="w-full bg-command-green text-white font-bold text-[12px] hover:bg-command-green/90 shadow-[0_0_15px_var(--color-command-green)]"
-                >
-                  <CheckCircle2 size={15} className="mr-1.5" /> ACKNOWLEDGE & ACCEPT CASE
-                </Button>
-                <Button
-                  onClick={() => setShowDoctorModal(false)}
-                  variant="outline"
-                  className="w-full border-command-border text-[11px]"
-                >
-                  Close Notification Window
-                </Button>
-              </div>
-            </div>
+  const waypoints = [
+    { x: 0.50, y: 0.80 },
+    { x: 0.58, y: 0.65 },
+    { x: 0.65, y: 0.50 },
+    { x: 0.73, y: 0.35 },
+    { x: 0.80, y: 0.20 },
+  ];
+
+  function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
+
+  function getPosAt(progress: number) {
+    const total = waypoints.length - 1;
+    const scaled = progress * total;
+    const idx = Math.min(Math.floor(scaled), total - 1);
+    const t = scaled - idx;
+    return {
+      x: lerp(waypoints[idx]!.x, waypoints[idx + 1]!.x, t),
+      y: lerp(waypoints[idx]!.y, waypoints[idx + 1]!.y, t),
+    };
+  }
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    function draw(ts: number) {
+      if (!startRef.current) startRef.current = ts;
+      const progress = Math.min((ts - startRef.current) / durationMs, 1);
+      const W = canvas!.width;
+      const H = canvas!.height;
+      ctx!.clearRect(0, 0, W, H);
+
+      // Grid background
+      ctx!.strokeStyle = "rgba(0,200,255,0.06)";
+      ctx!.lineWidth = 1;
+      for (let gx = 0; gx < W; gx += 36) { ctx!.beginPath(); ctx!.moveTo(gx, 0); ctx!.lineTo(gx, H); ctx!.stroke(); }
+      for (let gy = 0; gy < H; gy += 36) { ctx!.beginPath(); ctx!.moveTo(0, gy); ctx!.lineTo(W, gy); ctx!.stroke(); }
+
+      // Full dashed route
+      ctx!.beginPath();
+      ctx!.setLineDash([7, 5]);
+      ctx!.strokeStyle = "rgba(0,200,255,0.22)";
+      ctx!.lineWidth = 2;
+      waypoints.forEach((pt, i) => {
+        i === 0 ? ctx!.moveTo(pt.x * W, pt.y * H) : ctx!.lineTo(pt.x * W, pt.y * H);
+      });
+      ctx!.stroke();
+      ctx!.setLineDash([]);
+
+      // Travelled path (glowing cyan)
+      const cur = getPosAt(progress);
+      ctx!.beginPath();
+      ctx!.strokeStyle = "rgba(0,220,255,0.9)";
+      ctx!.lineWidth = 3;
+      ctx!.shadowColor = "rgba(0,220,255,0.8)";
+      ctx!.shadowBlur = 8;
+      let passedCur = false;
+      waypoints.forEach((pt, i) => {
+        const segFrac = i / (waypoints.length - 1);
+        if (i === 0) { ctx!.moveTo(pt.x * W, pt.y * H); }
+        else if (segFrac <= progress) { ctx!.lineTo(pt.x * W, pt.y * H); }
+        else if (!passedCur) { ctx!.lineTo(cur.x * W, cur.y * H); passedCur = true; }
+      });
+      ctx!.stroke();
+      ctx!.shadowBlur = 0;
+
+      // Hospital pin
+      const hx = waypoints[0]!.x * W;
+      const hy = waypoints[0]!.y * H;
+      ctx!.beginPath(); ctx!.arc(hx, hy, 11, 0, Math.PI * 2);
+      ctx!.fillStyle = "rgba(0,200,255,0.18)"; ctx!.fill();
+      ctx!.strokeStyle = "rgba(0,200,255,0.9)"; ctx!.lineWidth = 2; ctx!.stroke();
+      ctx!.fillStyle = "rgba(0,220,255,1)"; ctx!.font = "bold 11px monospace"; ctx!.textAlign = "center";
+      ctx!.fillText("H", hx, hy + 4);
+      ctx!.fillStyle = "rgba(160,220,255,0.75)"; ctx!.font = "9px sans-serif";
+      ctx!.fillText("HOSPITAL", hx, hy + 24);
+
+      // Incident pin (pulsing red)
+      const ix = waypoints[waypoints.length - 1]!.x * W;
+      const iy = waypoints[waypoints.length - 1]!.y * H;
+      const pulse = 0.5 + 0.5 * Math.sin(ts / 280);
+      ctx!.beginPath(); ctx!.arc(ix, iy, 11 + pulse * 5, 0, Math.PI * 2);
+      ctx!.fillStyle = `rgba(255,60,60,${0.07 + pulse * 0.09})`; ctx!.fill();
+      ctx!.beginPath(); ctx!.arc(ix, iy, 11, 0, Math.PI * 2);
+      ctx!.fillStyle = "rgba(255,60,60,0.22)"; ctx!.fill();
+      ctx!.strokeStyle = "rgba(255,80,80,0.9)"; ctx!.lineWidth = 2; ctx!.stroke();
+      ctx!.fillStyle = "rgba(255,110,110,1)"; ctx!.font = "bold 12px monospace"; ctx!.textAlign = "center";
+      ctx!.fillText("!", ix, iy + 4);
+      ctx!.fillStyle = "rgba(255,160,160,0.8)"; ctx!.font = "9px sans-serif";
+      ctx!.fillText("INCIDENT", ix, iy + 24);
+
+      // Ambulance at current position
+      const ax = cur.x * W;
+      const ay = cur.y * H;
+      ctx!.beginPath(); ctx!.arc(ax, ay, 18 + pulse * 3, 0, Math.PI * 2);
+      ctx!.fillStyle = `rgba(220,30,30,${0.05 + pulse * 0.06})`; ctx!.fill();
+      ctx!.fillStyle = "rgba(210,25,25,0.95)";
+      ctx!.beginPath(); ctx!.rect(ax - 15, ay - 10, 30, 20); ctx!.fill();
+      ctx!.fillStyle = "white";
+      ctx!.fillRect(ax - 2, ay - 7, 4, 14);
+      ctx!.fillRect(ax - 7, ay - 2, 14, 4);
+      const flash = Math.floor(ts / 180) % 2 === 0;
+      ctx!.fillStyle = flash ? "rgba(0,200,255,0.95)" : "rgba(255,220,0,0.95)";
+      ctx!.beginPath(); ctx!.arc(ax - 7, ay - 13, 3, 0, Math.PI * 2); ctx!.fill();
+      ctx!.fillStyle = flash ? "rgba(255,220,0,0.95)" : "rgba(0,200,255,0.95)";
+      ctx!.beginPath(); ctx!.arc(ax + 7, ay - 13, 3, 0, Math.PI * 2); ctx!.fill();
+
+      // ETA label
+      const remaining = Math.max(0, Math.round(etaMinutes * (1 - progress)));
+      ctx!.fillStyle = "rgba(0,220,255,0.9)";
+      ctx!.font = "bold 11px monospace"; ctx!.textAlign = "left";
+      ctx!.fillText(`ETA: ${remaining}m`, 12, H - 12);
+      ctx!.fillStyle = "rgba(160,200,255,0.6)";
+      ctx!.font = "9px monospace"; ctx!.textAlign = "right";
+      ctx!.fillText("EMS UNIT 14 · 85 km/h", W - 12, H - 12);
+
+      if (progress < 1) {
+        animRef.current = requestAnimationFrame(draw);
+      } else {
+        ctx!.fillStyle = "rgba(0,255,120,0.12)"; ctx!.fillRect(0, 0, W, H);
+        ctx!.fillStyle = "rgba(0,255,140,1)"; ctx!.font = "bold 15px monospace"; ctx!.textAlign = "center";
+        ctx!.fillText("AMBULANCE ARRIVED", W / 2, H / 2);
+      }
+    }
+
+    animRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [durationMs, etaMinutes]);
+
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4 backdrop-blur-md">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-command-red/40 bg-command-raised shadow-2xl">
+        <div className="flex items-center justify-between border-b border-command-border px-5 py-3">
+          <div className="flex items-center gap-2">
+            <Ambulance size={16} className="animate-pulse text-command-red" />
+            <span className="text-[12px] font-bold text-foreground">Ambulance Dispatch Tracker</span>
+            <span className="rounded border border-command-red/30 bg-command-red/10 px-1.5 py-0.5 text-[8px] font-bold text-command-red">LIVE</span>
           </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X size={15} />
+          </button>
         </div>
-      )}
+        <div className="flex flex-wrap items-center gap-4 border-b border-command-border/60 bg-command/60 px-5 py-2 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-1"><MapPin size={11} className="text-command-cyan" />{location}</span>
+          <span className="flex items-center gap-1"><Siren size={11} className="text-command-red" />{incidentType}</span>
+          <span className="ml-auto flex items-center gap-1"><Timer size={11} className="text-command-amber" />ETA ~{etaMinutes}m</span>
+        </div>
+        <div className="bg-[#040c18]">
+          <canvas ref={canvasRef} width={480} height={300} className="w-full" />
+        </div>
+        <div className="flex items-center justify-between border-t border-command-border px-5 py-3">
+          <span className="text-[9px] text-muted-foreground">Simulated route · Ground EMS Unit 14</span>
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 rounded-lg border border-command-cyan/40 bg-command-cyan/10 px-3 py-1.5 text-[10px] font-semibold text-command-cyan hover:bg-command-cyan/20"
+          >
+            <Map size={12} /> Open in Google Maps
+          </a>
+        </div>
+      </div>
     </div>
   );
 }
