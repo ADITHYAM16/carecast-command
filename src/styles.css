@@ -169,47 +169,70 @@
 }
 
 .light {
-  --background: oklch(0.972 0.007 228);
-  --foreground: oklch(0.18 0.03 240);
-  --card: oklch(0.995 0.004 220);
-  --card-foreground: oklch(0.18 0.03 240);
-  --popover: oklch(0.995 0.004 220);
-  --popover-foreground: oklch(0.18 0.03 240);
-  --primary: oklch(0.54 0.16 200);
-  --primary-foreground: oklch(0.99 0.005 220);
-  --secondary: oklch(0.91 0.018 228);
-  --secondary-foreground: oklch(0.24 0.035 238);
-  --muted: oklch(0.92 0.014 228);
-  --muted-foreground: oklch(0.46 0.03 232);
-  --accent: oklch(0.89 0.022 228);
-  --accent-foreground: oklch(0.2 0.035 240);
-  --destructive: oklch(0.55 0.19 25);
-  --destructive-foreground: oklch(0.99 0.005 20);
-  --border: oklch(0.82 0.022 232);
-  --input: oklch(0.86 0.018 230);
-  --ring: oklch(0.54 0.16 200);
-  --chart-1: oklch(0.54 0.16 200);
-  --chart-2: oklch(0.5 0.16 162);
-  --chart-3: oklch(0.6 0.14 85);
-  --chart-4: oklch(0.56 0.18 28);
-  --chart-5: oklch(0.5 0.12 248);
-  --sidebar: oklch(0.955 0.01 228);
-  --sidebar-foreground: oklch(0.2 0.03 240);
-  --sidebar-primary: oklch(0.54 0.16 200);
-  --sidebar-primary-foreground: oklch(0.99 0.005 220);
-  --sidebar-accent: oklch(0.9 0.02 228);
-  --sidebar-accent-foreground: oklch(0.2 0.03 240);
-  --sidebar-border: oklch(0.83 0.02 232);
-  --sidebar-ring: oklch(0.54 0.16 200);
-  --command: oklch(0.972 0.007 228);
-  --command-raised: oklch(0.995 0.004 220);
-  --command-panel: oklch(0.99 0.005 220 / 88%);
-  --command-cyan: oklch(0.48 0.17 204);
-  --command-teal: oklch(0.44 0.15 170);
-  --command-green: oklch(0.46 0.15 155);
-  --command-amber: oklch(0.52 0.15 75);
-  --command-red: oklch(0.52 0.2 27);
-  --command-border: oklch(0.76 0.026 228 / 70%);
+  /* Main Background: Soft Sage White */
+  --background: #F5F8F1;
+  /* Text Primary: Dark Forest */
+  --foreground: #1F2937;
+  /* Card Background: Warm Clinical White */
+  --card: #FFFFFF;
+  --card-foreground: #1F2937;
+  /* Popover */
+  --popover: #FFFFFF;
+  --popover-foreground: #1F2937;
+  /* Primary Healthcare Green: Deep Medical Green */
+  --primary: #164B2A;
+  --primary-foreground: #FFFFFF;
+  /* Secondary / Surface */
+  --secondary: #F7F9F5;
+  --secondary-foreground: #164B2A;
+  /* Muted */
+  --muted: #F7F9F5;
+  /* Text Secondary: Muted Grey */
+  --muted-foreground: #64748B;
+  /* Light Green Accent: Soft Mint */
+  --accent: #DDF4C7;
+  --accent-foreground: #164B2A;
+  /* Critical Alert: Medical Coral Red */
+  --destructive: #F87171;
+  --destructive-foreground: #FFFFFF;
+  /* Border: Soft Grey Green */
+  --border: #E5E7EB;
+  --input: #F7F9F5;
+  --ring: #4CAF50;
+  /* Charts */
+  --chart-1: #164B2A;
+  --chart-2: #4CAF50;
+  --chart-3: #EAB308;
+  --chart-4: #F87171;
+  --chart-5: #22C55E;
+  /* Sidebar: Light Grey Green */
+  --sidebar: #F7F9F5;
+  --sidebar-foreground: #1F2937;
+  --sidebar-primary: #164B2A;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #DDF4C7;
+  --sidebar-accent-foreground: #164B2A;
+  --sidebar-border: #E5E7EB;
+  --sidebar-ring: #164B2A;
+  /* Command palette & Surfaces */
+  --command: #F5F8F1;
+  --command-raised: #FFFFFF;
+  --command-panel: #FFFFFF;
+  /* Primary Healthcare Green: Deep Medical Green */
+  --command-cyan: #164B2A;
+  /* Secondary Green: Clinical Leaf Green */
+  --command-teal: #4CAF50;
+  /* Success: Hospital Green */
+  --command-green: #22C55E;
+  /* Warning: Soft Amber */
+  --command-amber: #EAB308;
+  /* Critical Alert: Medical Coral Red */
+  --command-red: #F87171;
+  /* Clinical Green / Accent */
+  --command-blue: #164B2A;
+  --command-violet: #4CAF50;
+  /* Border: Soft Grey Green */
+  --command-border: #E5E7EB;
 }
 
 @layer base {
@@ -231,15 +254,35 @@
 @utility command-panel {
   background: var(--command-panel);
   border: 1px solid var(--command-border);
-  box-shadow: 0 18px 45px oklch(0.03 0.02 245 / 12%), inset 0 1px oklch(1 0 0 / 6%);
-  backdrop-filter: blur(12px);
+  /* Soft clinical shadow */
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.02),
+    0 10px 40px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(14px);
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
 }
 
+/* Dark mode keeps the original glow treatment */
+.dark .command-panel,
+:root:not(.light) .command-panel {
+  box-shadow:
+    0 18px 45px oklch(0.03 0.02 245 / 12%),
+    inset 0 1px oklch(1 0 0 / 6%);
+}
+
 .command-panel:hover {
-  border-color: color-mix(in oklch, var(--command-cyan) 40%, var(--command-border));
-  box-shadow: 0 24px 55px oklch(0.03 0.02 245 / 22%), 0 0 25px color-mix(in oklch, var(--command-cyan) 12%, transparent);
+  border-color: color-mix(in srgb, var(--command-teal) 35%, var(--command-border));
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.04),
+    0 14px 40px rgba(22, 75, 42, 0.08);
   transform: translateY(-2px);
+}
+
+.dark .command-panel:hover,
+:root:not(.light) .command-panel:hover {
+  box-shadow:
+    0 24px 55px oklch(0.03 0.02 245 / 22%),
+    0 0 25px color-mix(in oklch, var(--command-cyan) 12%, transparent);
 }
 
 @utility command-card-hover {
@@ -248,8 +291,17 @@
 
 .command-card-hover:hover {
   transform: translateY(-3px) scale(1.005);
-  border-color: color-mix(in oklch, var(--command-cyan) 50%, var(--command-border));
-  box-shadow: 0 12px 30px oklch(0.03 0.02 245 / 20%), 0 0 18px color-mix(in oklch, var(--command-cyan) 15%, transparent);
+  border-color: color-mix(in srgb, var(--command-cyan) 45%, var(--command-border));
+  box-shadow:
+    0 8px 22px rgba(8, 145, 178, 0.13),
+    0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.dark .command-card-hover:hover,
+:root:not(.light) .command-card-hover:hover {
+  box-shadow:
+    0 12px 30px oklch(0.03 0.02 245 / 20%),
+    0 0 18px color-mix(in oklch, var(--command-cyan) 15%, transparent);
 }
 
 @utility mono-data {

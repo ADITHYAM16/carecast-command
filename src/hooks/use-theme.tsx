@@ -3,9 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 type Theme = "dark" | "light";
 
 function getInitialTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   const stored = localStorage.getItem("carecast-theme") as Theme | null;
-  return stored === "light" ? "light" : "dark";
+  return stored === "dark" ? "dark" : "light";
 }
 
 export function useTheme() {

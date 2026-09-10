@@ -1188,11 +1188,8 @@ function AmbulanceMapModal({
   const durationMs = Math.min(etaMinutes * 2000, 30000);
 
   const waypoints = [
-    { x: 0.50, y: 0.80 },
-    { x: 0.58, y: 0.65 },
-    { x: 0.65, y: 0.50 },
-    { x: 0.73, y: 0.35 },
-    { x: 0.80, y: 0.20 },
+    { x: 0.15, y: 0.82 }, // Incident (start)
+    { x: 0.85, y: 0.18 }, // Hospital (end)
   ];
 
   function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
@@ -1256,8 +1253,8 @@ function AmbulanceMapModal({
       ctx!.shadowBlur = 0;
 
       // Hospital pin
-      const hx = waypoints[0]!.x * W;
-      const hy = waypoints[0]!.y * H;
+      const hx = waypoints[waypoints.length - 1]!.x * W;
+      const hy = waypoints[waypoints.length - 1]!.y * H;
       ctx!.beginPath(); ctx!.arc(hx, hy, 11, 0, Math.PI * 2);
       ctx!.fillStyle = "rgba(0,200,255,0.18)"; ctx!.fill();
       ctx!.strokeStyle = "rgba(0,200,255,0.9)"; ctx!.lineWidth = 2; ctx!.stroke();
@@ -1267,8 +1264,8 @@ function AmbulanceMapModal({
       ctx!.fillText("HOSPITAL", hx, hy + 24);
 
       // Incident pin (pulsing red)
-      const ix = waypoints[waypoints.length - 1]!.x * W;
-      const iy = waypoints[waypoints.length - 1]!.y * H;
+      const ix = waypoints[0]!.x * W;
+      const iy = waypoints[0]!.y * H;
       const pulse = 0.5 + 0.5 * Math.sin(ts / 280);
       ctx!.beginPath(); ctx!.arc(ix, iy, 11 + pulse * 5, 0, Math.PI * 2);
       ctx!.fillStyle = `rgba(255,60,60,${0.07 + pulse * 0.09})`; ctx!.fill();
@@ -1280,21 +1277,23 @@ function AmbulanceMapModal({
       ctx!.fillStyle = "rgba(255,160,160,0.8)"; ctx!.font = "9px sans-serif";
       ctx!.fillText("INCIDENT", ix, iy + 24);
 
-      // Ambulance at current position
+      // Ambulance emoji at current position
       const ax = cur.x * W;
       const ay = cur.y * H;
-      ctx!.beginPath(); ctx!.arc(ax, ay, 18 + pulse * 3, 0, Math.PI * 2);
-      ctx!.fillStyle = `rgba(220,30,30,${0.05 + pulse * 0.06})`; ctx!.fill();
-      ctx!.fillStyle = "rgba(210,25,25,0.95)";
-      ctx!.beginPath(); ctx!.rect(ax - 15, ay - 10, 30, 20); ctx!.fill();
-      ctx!.fillStyle = "white";
-      ctx!.fillRect(ax - 2, ay - 7, 4, 14);
-      ctx!.fillRect(ax - 7, ay - 2, 14, 4);
-      const flash = Math.floor(ts / 180) % 2 === 0;
-      ctx!.fillStyle = flash ? "rgba(0,200,255,0.95)" : "rgba(255,220,0,0.95)";
-      ctx!.beginPath(); ctx!.arc(ax - 7, ay - 13, 3, 0, Math.PI * 2); ctx!.fill();
-      ctx!.fillStyle = flash ? "rgba(255,220,0,0.95)" : "rgba(0,200,255,0.95)";
-      ctx!.beginPath(); ctx!.arc(ax + 7, ay - 13, 3, 0, Math.PI * 2); ctx!.fill();
+      // Glow ring
+      ctx!.beginPath(); ctx!.arc(ax, ay, 26 + pulse * 4, 0, Math.PI * 2);
+      ctx!.fillStyle = `rgba(220,30,30,${0.08 + pulse * 0.08})`; ctx!.fill();
+      // Emoji — full brightness
+      ctx!.save();
+      ctx!.globalAlpha = 1;
+      ctx!.globalCompositeOperation = "source-over";
+      ctx!.shadowColor = "rgba(255,255,255,0.6)";
+      ctx!.shadowBlur = 12;
+      ctx!.font = "42px serif";
+      ctx!.textAlign = "center";
+      ctx!.textBaseline = "middle";
+      ctx!.fillText("🚑", ax, ay);
+      ctx!.restore();
 
       // ETA label
       const remaining = Math.max(0, Math.round(etaMinutes * (1 - progress)));
